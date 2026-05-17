@@ -12,6 +12,7 @@ class ShengBotApp {
     this.messageLogs = [];
     this.systemLogs = [];
     this.settings = {};
+    this.csrfToken = null;
     this.init();
   }
 
@@ -41,9 +42,20 @@ class ShengBotApp {
   }
 
   // ================== 🌐 API Helper ==================
+  async getCsrfToken() {
+    if (this.csrfToken) {
+      return this.csrfToken;
+    }
+    const data = await this.fetchApi('csrf-token', { method: 'GET' });
+    this.csrfToken = data.csrf_token;
+    return this.csrfToken;
+  }
+
   async fetchApi(endpoint, options = {}) {
     try {
       const fetchOptions = { ...options };
+      const method = (fetchOptions.method || 'GET').toUpperCase();
+      
       // 只有当 body 不是 FormData 时才设置 Content-Type
       if (!(options.body instanceof FormData)) {
         fetchOptions.headers = {
@@ -53,6 +65,12 @@ class ShengBotApp {
       } else {
         // FormData 不需要手动设置 Content-Type
         fetchOptions.headers = { ...options.headers };
+      }
+      
+      // 对非 GET 请求添加 CSRF 令牌
+      if (method !== 'GET') {
+        const token = await this.getCsrfToken();
+        fetchOptions.headers['X-CSRF-Token'] = token;
       }
       
       const response = await fetch(`/admin/api/${endpoint}`, fetchOptions);
@@ -162,6 +180,9 @@ class ShengBotApp {
       case 'settings':
         const settingsData = await this.fetchApi('settings');
         this.settings = settingsData.settings || {};
+        if (settingsData.csrf_token) {
+          this.csrfToken = settingsData.csrf_token;
+        }
         break;
     }
   }
