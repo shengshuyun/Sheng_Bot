@@ -217,7 +217,7 @@ class ShengBotApp {
     select.innerHTML = '<option value="">-- 选择一个QQ机器人 --</option>';
     this.qqBots.forEach(bot => {
       const opt = document.createElement('option');
-      opt.value = bot.id;
+      opt.value = String(bot.id);
       opt.textContent = `${bot.appid} (${bot.sandbox ? '沙箱' : '正式'})`;
       select.appendChild(opt);
     });
