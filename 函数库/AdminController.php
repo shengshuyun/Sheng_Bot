@@ -65,14 +65,21 @@ class AdminController
         
         $isInstalled = $this->db->isInstalled();
         
+        // 如果已安装，不允许访问安装页面（除了 /admin/install/do）
+        if ($isInstalled && substr($uri, 0, 14) === '/admin/install' && $uri !== '/admin/install/do') {
+            $this->redirect($response, '/admin/');
+            return;
+        }
+        
+        // 如果未安装，只允许访问安装相关页面
         if (!$isInstalled && substr($uri, 0, 14) !== '/admin/install') {
             $this->redirect($response, '/admin/install');
             return;
         }
         
+        // 如果已安装但未登录，只允许访问登录页面
         if ($isInstalled && !$this->isLoggedIn($request) && 
-            substr($uri, 0, 11) !== '/admin/login' && 
-            substr($uri, 0, 14) !== '/admin/install') {
+            substr($uri, 0, 11) !== '/admin/login') {
             $this->redirect($response, '/admin/login');
             return;
         }
@@ -133,6 +140,12 @@ class AdminController
     
     private function doInstall($request, $response)
     {
+        // 防双重提交：如果已经安装，直接跳转
+        if ($this->db->isInstalled()) {
+            $this->redirect($response, '/admin/');
+            return;
+        }
+        
         $post = $request->post ?? [];
         $username = trim($post['username'] ?? '');
         $password = $post['password'] ?? '';

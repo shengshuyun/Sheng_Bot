@@ -198,8 +198,30 @@ class SQLiteDatabase
     
     public function isInstalled(): bool
     {
+        // 首先检查配置表中的 installed 标记
+        $installed = $this->getConfig('installed', false);
+        if ($installed) {
+            return true;
+        }
+        
+        // 兼容旧数据：如果有管理员但没有标记，创建标记
         $pdo = $this->getConnection();
         $stmt = $pdo->query("SELECT COUNT(*) FROM admins");
-        return $stmt->fetchColumn() > 0;
+        if ($stmt->fetchColumn() > 0) {
+            $this->setConfig('installed', true);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    public function lockInstall(): void
+    {
+        $this->setConfig('installed', true);
+    }
+    
+    public function unlockInstall(): void
+    {
+        $this->setConfig('installed', false);
     }
 }
