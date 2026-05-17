@@ -3,6 +3,7 @@
    Designed by: 2062年的前端魔法师
    ======================================== */
 
+/* Google Fonts (fallback to system fonts) */
 @import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+SC:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
@@ -31,7 +32,7 @@
 }
 
 body {
-  font-family: 'Kosugi Maru', 'Noto Sans SC', 'Poppins', sans-serif;
+  font-family: 'Kosugi Maru', 'Noto Sans SC', 'Poppins', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
   background: linear-gradient(135deg, #FFF7FA 0%, #FFE5F0 25%, #FFF0F5 50%, #FFE5D9 100%);
   background-attachment: fixed;
   color: #4A4A4A;

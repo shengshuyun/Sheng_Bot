@@ -44,33 +44,40 @@ class ShengBotApp {
       }
     });
 
-    // Handle button clicks
+    // Event delegation: handle all click events centrally
     document.addEventListener('click', (e) => {
-      // Delete buttons
-      if (e.target.closest('.delete-btn')) {
+      // Navigation links
+      const navLink = e.target.closest('.cute-nav-link');
+      if (navLink) {
         e.preventDefault();
-        this.handleDelete(e.target.closest('.delete-btn'));
+        const page = navLink.dataset.page;
+        if (page) {
+          this.navigateTo(page);
+        }
+        return;
+      }
+      
+      // Delete buttons
+      const deleteBtn = e.target.closest('.delete-btn');
+      if (deleteBtn) {
+        e.preventDefault();
+        this.handleDelete(deleteBtn);
+        return;
       }
       
       // Copy buttons
-      if (e.target.closest('.copy-btn')) {
-        this.handleCopy(e.target.closest('.copy-btn'));
+      const copyBtn = e.target.closest('.copy-btn');
+      if (copyBtn) {
+        this.handleCopy(copyBtn);
+        return;
       }
     });
   }
 
   // ================== 🧭 Navigation ==================
   setupNavigation() {
-    const navLinks = document.querySelectorAll('.cute-nav-link');
-    navLinks.forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const page = link.dataset.page;
-        if (page) {
-          this.navigateTo(page);
-        }
-      });
-    });
+    // No need for individual listeners - using event delegation now!
+    // This ensures dynamic content will work without re-binding
   }
 
   async navigateTo(page) {
@@ -112,6 +119,9 @@ class ShengBotApp {
     };
 
     mainContent.innerHTML = pages[page] || pages.dashboard;
+    
+    // Re-bind events for new content
+    this.setupNavigation();
   }
 
   // ================== 📄 Page Templates ==================
@@ -180,6 +190,57 @@ class ShengBotApp {
           </tbody>
         </table>
       </div>
+    `;
+  }
+
+  // Recreate nav links in dynamic content
+  getNavigationHTML() {
+    return `
+      <aside class="cute-sidebar">
+        <div class="sidebar-title">
+          <h3>🌸 功能菜单</h3>
+        </div>
+        <nav>
+          <ul class="cute-nav">
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
+                <span class="nav-icon">🏠</span>
+                仪表板
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'qqBots' ? 'active' : ''}" data-page="qqBots">
+                <span class="nav-icon">🤖</span>
+                官方QQ机器人
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'napcatBots' ? 'active' : ''}" data-page="napcatBots">
+                <span class="nav-icon">💻</span>
+                NapCat机器人
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'logs' ? 'active' : ''}" data-page="logs">
+                <span class="nav-icon">📨</span>
+                消息日志
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'system' ? 'active' : ''}" data-page="system">
+                <span class="nav-icon">📋</span>
+                系统日志
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link ${this.currentPage === 'settings' ? 'active' : ''}" data-page="settings">
+                <span class="nav-icon">⚙️</span>
+                系统设置
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
     `;
   }
 
