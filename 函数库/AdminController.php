@@ -119,6 +119,13 @@ class AdminController
         ];
         
         if (isset($staticMap[$uri]) && file_exists($staticMap[$uri])) {
+            // 登录检查
+            $isInstalled = $this->db->isInstalled();
+            if ($isInstalled && !$this->isLoggedIn($request)) {
+                $this->redirect($response, '/admin/login');
+                return true;
+            }
+            
             $content = file_get_contents($staticMap[$uri]);
             
             // Set correct Content-Type
@@ -140,6 +147,14 @@ class AdminController
     private function handleApi($request, $response, $uri)
   {
     $response->header('Content-Type', 'application/json; charset=utf-8');
+    
+    // API登录检查
+    $isInstalled = $this->db->isInstalled();
+    if ($isInstalled && !$this->isLoggedIn($request)) {
+        $response->status(401);
+        $response->end(json_encode(['success' => false, 'error' => '请先登录'], JSON_UNESCAPED_UNICODE));
+        return;
+    }
     
     $method = $request->server['request_method'] ?? 'GET';
     $endpoint = substr($uri, strlen('/admin/api/'));
