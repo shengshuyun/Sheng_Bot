@@ -279,12 +279,14 @@ class AdminController
         }
       }
       
-      // Test API - Message simulation
+      // Test API - Message simulation (QQ 官方机器人消息模拟
       elseif ($endpoint === 'test/send-message' && $method === 'POST') {
         $botId = (int)($post['bot_id'] ?? 0);
-        $msgType = $post['type'] ?? 'private';
+        $msgType = $post['type'] ?? 'private'; // private/group/channel/direct
         $senderId = $post['sender_id'] ?? '';
         $groupId = $post['group_id'] ?? '';
+        $channelId = $post['channel_id'] ?? '';
+        $guildId = $post['guild_id'] ?? '';
         $content = $post['content'] ?? '';
         $contentType = $post['content_type'] ?? 'text';
         
@@ -300,20 +302,70 @@ class AdminController
           $data['error'] = '机器人不存在';
           $this->db->addSystemLog('warning', '测试失败: 机器人不存在', ['bot_id' => $botId]);
         } else {
-          // Record simulated message to message logs
+          // Build QQ 官方格式消息对象
+          $officialEvent = [
+            'op' => 0,
+            't' => '',  // 事件类型
+            'id' => uniqid('test_', true),
+            'd' => [
+              'id' => uniqid('msg_', true),
+              'author' => [
+                'id' => $senderId,
+                'username' => '测试用户' . $senderId
+              ],
+              'content' => $content,
+              'timestamp' => date('c'),
+              'channel_id' => $channelId,
+              'guild_id' => $guildId,
+              'group_id' => $groupId
+            ]
+          ];
+          
+          // 根据类型设置不同的值
+          switch ($msgType) {
+            case 'private':
+              $officialEvent['t'] = 'C2C_MESSAGE_CREATE';
+              break;
+            case 'group':
+              $officialEvent['t'] = 'GROUP_AT_MESSAGE_CREATE';
+              $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
+              $officialEvent['d']['group_openid'] = $groupId;
+              break;
+            case 'direct':
+              $officialEvent['t'] = 'DIRECT_MESSAGE_CREATE';
+              $officialEvent['d']['guild_id'] = $guildId;
+              break;
+            case 'channel':
+              $officialEvent['t'] = 'AT_MESSAGE_CREATE';
+              $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
+              $officialEvent['d']['channel_id'] = $channelId;
+              $officialEvent['d']['guild_id'] = $guildId;
+              break;
+          }
+          
+          // 记录消息日志
+          $logGroupId = null;
+          if ($msgType === 'group') {
+            $logGroupId = $groupId;
+          } elseif ($msgType === 'channel') {
+            $logGroupId = $channelId;
+          }
+          
           $this->db->addMessageLog(
             'qq',
             $bot['appid'],
             $senderId,
-            $msgType === 'group' ? $groupId : null,
+            $logGroupId,
             $contentType,
             $content
           );
           
           $data['success'] = true;
           $data['message'] = '模拟消息推送成功';
-          $this->db->addSystemLog('info', '模拟消息推送', [
-            'bot' => $bot['appid'],
+          $data['event'] = $officialEvent;
+          $this->db->addSystemLog('info', '模拟QQ官方格式消息推送', [
+            'bot_id' => $botId,
+            'bot_appid' => $bot['appid'],
             'type' => $msgType,
             'sender' => $senderId,
             'group' => $groupId,

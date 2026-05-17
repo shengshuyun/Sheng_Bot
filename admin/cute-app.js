@@ -200,6 +200,7 @@ class ShengBotApp {
   async loadTestPageData() {
     await this.loadQQBots();
     this.updateBotSelect();
+    this.handleTestTypeChange();
   }
 
   async loadQQBots() {
@@ -247,6 +248,11 @@ class ShengBotApp {
   bindTestEvents() {
     const sendBtn = document.getElementById('test-send-btn');
     const refreshBtn = document.getElementById('test-refresh-bots-btn');
+    const typeSelect = document.getElementById('test-type-select');
+    
+    if (typeSelect) {
+      typeSelect.onchange = () => this.handleTestTypeChange();
+    }
     
     if (sendBtn) {
       sendBtn.onclick = () => this.sendTestMessage();
@@ -261,11 +267,27 @@ class ShengBotApp {
     }
   }
 
+  handleTestTypeChange() {
+    const type = document.getElementById('test-type-select')?.value;
+    const groupField = document.getElementById('test-group-field');
+    const channelFields = document.getElementById('test-channel-fields');
+    
+    if (groupField) {
+      groupField.style.display = (type === 'group') ? '' : 'none';
+    }
+    
+    if (channelFields) {
+      channelFields.style.display = (type === 'channel' || type === 'direct') ? '' : 'none';
+    }
+  }
+
   async sendTestMessage() {
     const botId = document.getElementById('test-bot-select')?.value;
     const type = document.getElementById('test-type-select')?.value;
     const senderId = document.getElementById('test-sender-id')?.value;
     const groupId = document.getElementById('test-group-id')?.value;
+    const channelId = document.getElementById('test-channel-id')?.value;
+    const guildId = document.getElementById('test-guild-id')?.value;
     const content = document.getElementById('test-content')?.value;
     const contentType = document.getElementById('test-content-type')?.value;
 
@@ -281,14 +303,27 @@ class ShengBotApp {
       return;
     }
 
+    if (type === 'channel' && (!channelId || !guildId)) {
+      this.showToast('error', '错误', '频道消息必须填写频道ID');
+      this.addTestLog('❌ 发送失败: 频道消息未填写完整ID', 'error');
+      return;
+    }
+
     if (!content) {
       this.showToast('error', '错误', '请填写消息内容');
       this.addTestLog('❌ 发送失败: 消息内容为空', 'error');
       return;
     }
 
+    const typeNames = {
+      private: '单聊',
+      group: '群聊',
+      channel: '频道',
+      direct: '频道私信'
+    };
+
     try {
-      this.addTestLog(`📤 正在发送${type === 'group' ? '群聊' : '私聊'}消息...`, 'info');
+      this.addTestLog(`📤 正在发送${typeNames[type]}消息...`, 'info');
       const result = await this.fetchApi('test/send-message', {
         method: 'POST',
         body: new URLSearchParams({
@@ -296,6 +331,8 @@ class ShengBotApp {
           type: type,
           sender_id: senderId,
           group_id: groupId,
+          channel_id: channelId,
+          guild_id: guildId,
           content: content,
           content_type: contentType
         })
@@ -304,6 +341,11 @@ class ShengBotApp {
       if (result.success) {
         this.showToast('success', '发送成功', '测试消息已推送');
         this.addTestLog(`✅ 消息推送成功: ${contentType}`, 'success');
+        
+        if (result.event) {
+          this.addTestLog(`📥 官方格式: `, 'info');
+          this.addTestLog(JSON.stringify(result.event, null, 2));
+        }
       } else {
         this.showToast('error', '发送失败', result.error || '未知错误');
         this.addTestLog(`❌ 消息推送失败: ${result.error}`, 'error');
@@ -856,7 +898,7 @@ class ShengBotApp {
     return `
       <div class="cute-card">
         <div class="card-header">
-          <h3 class="card-title">🧪 消息推送测试</h3>
+          <h3 class="card-title">🧪 QQ 官方机器人消息模拟测试</h3>
         </div>
         
         <div class="cute-form-row">
@@ -867,28 +909,41 @@ class ShengBotApp {
             </select>
           </div>
           <div class="cute-form-group">
-            <label class="cute-label">消息类型</label>
+            <label class="cute-label">消息类型 (官方事件)</label>
             <select class="cute-select" id="test-type-select">
-              <option value="private">私聊消息</option>
-              <option value="group">群聊消息</option>
+              <option value="private">单聊 (C2C_MESSAGE_CREATE)</option>
+              <option value="group">群聊 @ (GROUP_AT_MESSAGE_CREATE)</option>
+              <option value="channel">频道 @ (AT_MESSAGE_CREATE)</option>
+              <option value="direct">频道私信 (DIRECT_MESSAGE_CREATE)</option>
             </select>
           </div>
         </div>
         
         <div class="cute-form-row">
           <div class="cute-form-group">
-            <label class="cute-label">发送者ID</label>
+            <label class="cute-label">发送者 ID (OpenID)</label>
             <input type="text" class="cute-input" id="test-sender-id" value="123456789">
           </div>
-          <div class="cute-form-group">
-            <label class="cute-label">群号(群聊必填)</label>
+          <div class="cute-form-group" id="test-group-field">
+            <label class="cute-label">群号 (Group OpenID)</label>
             <input type="text" class="cute-input" id="test-group-id" value="987654321">
+          </div>
+        </div>
+        
+        <div class="cute-form-row" id="test-channel-fields" style="display: none;">
+          <div class="cute-form-group">
+            <label class="cute-label">频道 ID (Guild ID)</label>
+            <input type="text" class="cute-input" id="test-guild-id" value="guild_123">
+          </div>
+          <div class="cute-form-group">
+            <label class="cute-label">子频道 ID (Channel ID)</label>
+            <input type="text" class="cute-input" id="test-channel-id" value="channel_456">
           </div>
         </div>
         
         <div class="cute-form-group">
           <label class="cute-label">消息内容</label>
-          <textarea class="cute-input" id="test-content" rows="4">你好，这是一条测试消息！</textarea>
+          <textarea class="cute-input" id="test-content" rows="4">你好，这是一条官方格式的测试消息！</textarea>
         </div>
         
         <div class="cute-form-row">
@@ -896,7 +951,7 @@ class ShengBotApp {
             <label class="cute-label">内容类型</label>
             <select class="cute-select" id="test-content-type">
               <option value="text">纯文本</option>
-              <option value="image">图片</option>
+              <option value="image">图片URL</option>
               <option value="at">@消息</option>
             </select>
           </div>
@@ -916,7 +971,7 @@ class ShengBotApp {
         <div class="card-header">
           <h3 class="card-title">📋 推送记录</h3>
         </div>
-        <div id="test-log" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px;">
+        <div id="test-log" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;">
           <div style="color: #888; padding: 8px;">暂无记录...</div>
         </div>
       </div>
