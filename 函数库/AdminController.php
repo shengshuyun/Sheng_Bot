@@ -56,28 +56,112 @@ class AdminController
     
     private function html($content, $title = 'Sheng_Bot')
     {
-        return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' . $title . '</title><link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-light">' . $content . '</body></html>';
+        $bootstrapCss = 'https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css';
+        $bootstrapJs = 'https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js';
+        $fontAwesome = 'https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        $customCss = '/admin/styles.css?t=' . time();
+        
+        return '<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sheng_Bot 管理后台 - 现代化机器人管理平台">
+    <title>' . htmlspecialchars($title) . '</title>
+    <link href="' . $bootstrapCss . '" rel="stylesheet">
+    <link href="' . $fontAwesome . '" rel="stylesheet">
+    <link href="' . $customCss . '" rel="stylesheet">
+</head>
+<body>
+    ' . $content . '
+    <script src="' . $bootstrapJs . '"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const sidebar = document.querySelector(".sidebar");
+            const sidebarOverlay = document.querySelector(".sidebar-overlay");
+            const toggleBtn = document.querySelector(".sidebar-toggle");
+            
+            if (toggleBtn) {
+                toggleBtn.addEventListener("click", function() {
+                    sidebar.classList.toggle("show");
+                    if (sidebarOverlay) {
+                        sidebarOverlay.classList.toggle("show");
+                    }
+                });
+            }
+            
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener("click", function() {
+                    sidebar.classList.remove("show");
+                    sidebarOverlay.classList.remove("show");
+                });
+            }
+            
+            const cards = document.querySelectorAll(".card");
+            cards.forEach((card, index) => {
+                card.style.animationDelay = (index * 0.1) + "s";
+            });
+            
+            const tableRows = document.querySelectorAll("tbody tr");
+            tableRows.forEach((row, index) => {
+                row.style.animationDelay = (index * 0.05) + "s";
+                row.classList.add("animate-fadeIn");
+            });
+        });
+        
+        function showToast(message, type = "success") {
+            const toastContainer = document.createElement("div");
+            toastContainer.className = "toast-container";
+            toastContainer.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-${type === "success" ? "check-circle" : "exclamation-circle"} me-2"></i>
+                        <strong class="me-auto">提示</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(toastContainer);
+            
+            const toast = new bootstrap.Toast(toastContainer.querySelector(".toast"));
+            toast.show();
+            
+            toastContainer.querySelector(".toast").addEventListener("hidden.bs.toast", function() {
+                toastContainer.remove();
+            });
+        }
+        
+        function confirmDelete(event, message = "确定要删除吗？") {
+            if (!confirm(message)) {
+                event.preventDefault();
+                return false;
+            }
+            showToast("删除成功", "success");
+            return true;
+        }
+    </script>
+</body>
+</html>';
     }
     
     public function handle($request, $response)
     {
         $uri = $request->server['request_uri'] ?? '/';
+        $uri = strtok($uri, '?');
         
         $isInstalled = $this->db->isInstalled();
         
-        // 如果已安装，不允许访问安装页面（除了 /admin/install/do）
         if ($isInstalled && substr($uri, 0, 14) === '/admin/install' && $uri !== '/admin/install/do') {
             $this->redirect($response, '/admin/');
             return;
         }
         
-        // 如果未安装，只允许访问安装相关页面
         if (!$isInstalled && substr($uri, 0, 14) !== '/admin/install') {
             $this->redirect($response, '/admin/install');
             return;
         }
         
-        // 如果已安装但未登录，只允许访问登录相关页面
         if ($isInstalled && !$this->isLoggedIn($request) && 
             $uri !== '/admin/login' && $uri !== '/admin/login/do') {
             $this->redirect($response, '/admin/login');
@@ -122,7 +206,7 @@ class AdminController
             $this->saveAdvancedSettings($request, $response);
         } else {
             $response->status(404);
-            $response->end($this->html('<div class="container mt-5"><h1>404 - 页面不存在</h1></div>'));
+            $response->end($this->errorPage('页面不存在', '您访问的页面不存在或已被删除。'));
         }
     }
     
@@ -133,16 +217,129 @@ class AdminController
         $response->end('');
     }
     
+    private function errorPage($title, $message)
+    {
+        $content = '<div class="container">
+            <div class="row justify-content-center align-items-center min-vh-100">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card text-center animate-fadeInUp">
+                        <div class="card-header bg-danger">
+                            <i class="fas fa-exclamation-triangle fa-3x text-white"></i>
+                        </div>
+                        <div class="card-body">
+                            <h2 class="text-danger mb-3">' . htmlspecialchars($title) . '</h2>
+                            <p class="text-muted mb-4">' . htmlspecialchars($message) . '</p>
+                            <a href="/admin/" class="btn btn-primary">
+                                <i class="fas fa-home me-2"></i>返回首页
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>';
+        return $content;
+    }
+    
     private function installPage($request, $response)
     {
-        $content = '<div class="container"><div class="row justify-content-center"><div class="col-md-6"><div class="card mt-5 shadow"><div class="card-header bg-primary text-white"><h4 class="mb-0">Sheng_Bot 安装向导</h4></div><div class="card-body"><form method="POST" action="/admin/install/do"><h5 class="mb-3">管理员账号</h5><div class="mb-3"><label class="form-label">用户名</label><input type="text" name="username" class="form-control" required placeholder="请输入管理员用户名"></div><div class="mb-3"><label class="form-label">密码</label><input type="password" name="password" class="form-control" required placeholder="至少6位"></div><div class="mb-4"><label class="form-label">确认密码</label><input type="password" name="confirm_password" class="form-control" required placeholder="再次输入密码"></div><h5 class="mb-3">基本设置</h5><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="Sheng_Bot"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="0.0.0.0"></div><div class="col-md-3 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="9501"></div><div class="col-md-3 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="9502"></div></div><button type="submit" class="btn btn-primary w-100">开始安装</button></form></div></div></div></div></div>';
+        $content = '<div class="container">
+            <div class="row justify-content-center align-items-center min-vh-100">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card shadow-lg animate-fadeInUp">
+                        <div class="card-header text-center py-4">
+                            <h3 class="mb-0">
+                                <i class="fas fa-rocket me-2"></i>Sheng_Bot 安装向导
+                            </h3>
+                            <p class="mb-0 mt-2 opacity-75">开始您的机器人管理之旅</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="POST" action="/admin/install/do" class="needs-validation" novalidate>
+                                <div class="alert alert-info mb-4">
+                                    <i class="fas fa-user-shield me-2"></i>
+                                    <strong>管理员账号</strong>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-user me-2"></i>用户名
+                                        </label>
+                                        <input type="text" name="username" class="form-control form-control-lg" 
+                                               required placeholder="请输入管理员用户名" autofocus>
+                                        <div class="invalid-feedback">请输入用户名</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-key me-2"></i>密码
+                                        </label>
+                                        <input type="password" name="password" class="form-control form-control-lg" 
+                                               required placeholder="至少6位" minlength="6">
+                                        <div class="invalid-feedback">密码长度至少6位</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label">
+                                        <i class="fas fa-lock me-2"></i>确认密码
+                                    </label>
+                                    <input type="password" name="confirm_password" class="form-control form-control-lg" 
+                                           required placeholder="再次输入密码">
+                                    <div class="invalid-feedback">请再次输入密码</div>
+                                </div>
+                                
+                                <hr class="my-4">
+                                
+                                <div class="alert alert-success mb-4">
+                                    <i class="fas fa-cog me-2"></i>
+                                    <strong>基本设置</strong>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label">
+                                        <i class="fas fa-globe me-2"></i>站点名称
+                                    </label>
+                                    <input type="text" name="site_name" class="form-control form-control-lg" 
+                                           value="Sheng_Bot">
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-network-wired me-2"></i>监听地址
+                                        </label>
+                                        <input type="text" name="domain" class="form-control" value="0.0.0.0">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-door-open me-2"></i>HTTP端口
+                                        </label>
+                                        <input type="number" name="http_port" class="form-control" value="9501">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-lock me-2"></i>HTTPS端口
+                                        </label>
+                                        <input type="number" name="https_port" class="form-control" value="9502">
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid gap-2 mt-4">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-download me-2"></i>开始安装
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '安装 - Sheng_Bot'));
     }
     
     private function doInstall($request, $response)
     {
-        // 防双重提交：如果已经安装，直接跳转
         if ($this->db->isInstalled()) {
             $this->redirect($response, '/admin/');
             return;
@@ -197,14 +394,69 @@ class AdminController
         $sessionId = $this->getSessionId($request);
         $this->setSession($response, $sessionId, ['admin_id' => 1, 'username' => $username]);
         
-        $content = '<div class="container"><div class="row justify-content-center"><div class="col-md-6"><div class="card mt-5 shadow"><div class="card-header bg-success text-white"><h4 class="mb-0">安装成功</h4></div><div class="card-body"><p class="mb-4">恭喜，Sheng_Bot管理后台已成功安装。</p><a href="/admin/" class="btn btn-primary w-100">进入管理后台</a></div></div></div></div></div>';
+        $content = '<div class="container">
+            <div class="row justify-content-center align-items-center min-vh-100">
+                <div class="col-md-6 col-lg-5">
+                    <div class="card shadow-lg text-center animate-fadeInUp">
+                        <div class="card-header bg-success py-4">
+                            <i class="fas fa-check-circle fa-4x text-white animate-pulse"></i>
+                        </div>
+                        <div class="card-body p-5">
+                            <h2 class="text-success mb-3">安装成功</h2>
+                            <p class="text-muted mb-4">恭喜，Sheng_Bot管理后台已成功安装</p>
+                            <div class="d-grid gap-2">
+                                <a href="/admin/" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-rocket me-2"></i>进入管理后台
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '安装成功 - Sheng_Bot'));
     }
     
     private function loginPage($request, $response)
     {
-        $content = '<div class="container"><div class="row justify-content-center"><div class="col-md-4"><div class="card mt-5 shadow"><div class="card-header bg-primary text-white"><h4 class="mb-0">Sheng_Bot 登录</h4></div><div class="card-body"><form method="POST" action="/admin/login/do"><div class="mb-3"><label class="form-label">用户名</label><input type="text" name="username" class="form-control" required></div><div class="mb-4"><label class="form-label">密码</label><input type="password" name="password" class="form-control" required></div><button type="submit" class="btn btn-primary w-100">登录</button></form></div></div></div></div></div>';
+        $content = '<div class="container">
+            <div class="row justify-content-center align-items-center min-vh-100">
+                <div class="col-md-5 col-lg-4">
+                    <div class="card shadow-lg animate-fadeInUp">
+                        <div class="card-header text-center py-4">
+                            <h3 class="mb-0">
+                                <i class="fas fa-user-circle me-2"></i>Sheng_Bot
+                            </h3>
+                            <p class="mb-0 mt-2 opacity-75">管理后台登录</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="POST" action="/admin/login/do" class="needs-validation" novalidate>
+                                <div class="mb-4">
+                                    <label class="form-label">
+                                        <i class="fas fa-user me-2"></i>用户名
+                                    </label>
+                                    <input type="text" name="username" class="form-control form-control-lg" 
+                                           required autofocus placeholder="请输入用户名">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label">
+                                        <i class="fas fa-key me-2"></i>密码
+                                    </label>
+                                    <input type="password" name="password" class="form-control form-control-lg" 
+                                           required placeholder="请输入密码">
+                                </div>
+                                <div class="d-grid gap-2 mt-5">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-sign-in-alt me-2"></i>登录
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '登录 - Sheng_Bot'));
     }
@@ -242,7 +494,24 @@ class AdminController
     
     private function showError($response, $message, $backUrl)
     {
-        $content = '<div class="container"><div class="row justify-content-center"><div class="col-md-6"><div class="card mt-5 shadow"><div class="card-header bg-danger text-white"><h4 class="mb-0">错误</h4></div><div class="card-body"><p class="mb-4">' . htmlspecialchars($message) . '</p><a href="' . $backUrl . '" class="btn btn-primary w-100">返回</a></div></div></div></div></div>';
+        $content = '<div class="container">
+            <div class="row justify-content-center align-items-center min-vh-100">
+                <div class="col-md-5 col-lg-4">
+                    <div class="card shadow-lg text-center animate-fadeInUp">
+                        <div class="card-header bg-danger py-4">
+                            <i class="fas fa-exclamation-circle fa-3x text-white"></i>
+                        </div>
+                        <div class="card-body p-4">
+                            <h3 class="text-danger mb-3">出错了</h3>
+                            <p class="text-muted mb-4">' . htmlspecialchars($message) . '</p>
+                            <a href="' . htmlspecialchars($backUrl) . '" class="btn btn-primary btn-lg">
+                                <i class="fas fa-arrow-left me-2"></i>返回
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '错误 - Sheng_Bot'));
     }
@@ -252,13 +521,13 @@ class AdminController
         $siteName = htmlspecialchars($this->db->getConfig('site_name', 'Sheng_Bot'));
         
         $menu = [
-            'index' => ['title' => '控制台'],
-            'qq' => ['title' => '官方QQ机器人'],
-            'napcat' => ['title' => 'NapCat机器人'],
-            'logs' => ['title' => '消息日志'],
-            'system' => ['title' => '系统日志'],
-            'settings' => ['title' => '系统设置'],
-            'logout' => ['title' => '退出登录']
+            'index' => ['title' => '控制台', 'icon' => 'fa-home'],
+            'qq' => ['title' => '官方QQ机器人', 'icon' => 'fa-robot'],
+            'napcat' => ['title' => 'NapCat机器人', 'icon' => 'fa-terminal'],
+            'logs' => ['title' => '消息日志', 'icon' => 'fa-envelope'],
+            'system' => ['title' => '系统日志', 'icon' => 'fa-clipboard-list'],
+            'settings' => ['title' => '系统设置', 'icon' => 'fa-cog'],
+            'logout' => ['title' => '退出登录', 'icon' => 'fa-sign-out-alt']
         ];
         
         $menuHtml = '';
@@ -272,10 +541,35 @@ class AdminController
             elseif ($key === 'system') $link = '/admin/system/logs';
             elseif ($key === 'settings') $link = '/admin/settings';
             elseif ($key === 'logout') $link = '/admin/logout';
-            $menuHtml .= '<li class="nav-item"><a class="nav-link ' . $activeClass . '" href="' . $link . '">' . $item['title'] . '</a></li>';
+            
+            $menuHtml .= '<li class="nav-item">
+                <a class="nav-link ' . $activeClass . '" href="' . $link . '">
+                    <i class="fas ' . $item['icon'] . ' me-3"></i>' . $item['title'] . '
+                </a>
+            </li>';
         }
         
-        return '<div class="container-fluid"><div class="row"><nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-dark text-white" style="min-height: 100vh;"><div class="position-sticky pt-3"><h5 class="px-3 mb-3">Sheng_Bot</h5><ul class="nav flex-column">' . $menuHtml . '</ul></div></nav>';
+        return '<div class="sidebar-overlay"></div>
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show">
+            <div class="position-sticky pt-3">
+                <div class="text-center mb-4">
+                    <h5>
+                        <i class="fas fa-robot me-2"></i>' . $siteName . '
+                    </h5>
+                </div>
+                <ul class="nav flex-column">' . $menuHtml . '</ul>
+            </div>
+        </nav>';
+    }
+    
+    private function mobileHeader()
+    {
+        return '<div class="mobile-header d-md-none">
+            <button class="sidebar-toggle btn btn-primary">
+                <i class="fas fa-bars"></i>
+            </button>
+            <span class="navbar-brand ms-3">' . htmlspecialchars($this->db->getConfig('site_name', 'Sheng_Bot')) . '</span>
+        </div>';
     }
     
     private function indexPage($request, $response)
@@ -285,7 +579,132 @@ class AdminController
         $napcatBotsCount = $pdo->query("SELECT COUNT(*) FROM napcat_bots")->fetchColumn();
         $messageLogsCount = $pdo->query("SELECT COUNT(*) FROM message_logs")->fetchColumn();
         
-        $content = $this->sidebar('index') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">控制台</h1></div><div class="row g-3 mb-4"><div class="col-md-4"><div class="card bg-primary text-white"><div class="card-body"><h5 class="card-title">官方QQ机器人</h5><h2 class="display-4">' . $qqBotsCount . '</h2></div></div></div><div class="col-md-4"><div class="card bg-success text-white"><div class="card-body"><h5 class="card-title">NapCat机器人</h5><h2 class="display-4">' . $napcatBotsCount . '</h2></div></div></div><div class="col-md-4"><div class="card bg-info text-white"><div class="card-body"><h5 class="card-title">消息日志</h5><h2 class="display-4">' . $messageLogsCount . '</h2></div></div></div></div><div class="row"><div class="col-md-6"><div class="card"><div class="card-header"><h5 class="mb-0">快速操作</h5></div><div class="card-body"><a href="/admin/bots/qq" class="btn btn-primary mb-2 w-100">添加官方QQ机器人</a><a href="/admin/bots/napcat" class="btn btn-success mb-2 w-100">添加NapCat机器人</a><a href="/admin/settings" class="btn btn-secondary w-100">系统设置</a></div></div></div><div class="col-md-6"><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
+        $session = $this->getSession($request);
+        $username = htmlspecialchars($session['username'] ?? 'Admin');
+        
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('index') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-tachometer-alt me-2 text-primary"></i>控制台
+                            </h1>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-user me-2"></i>欢迎回来，' . $username . '
+                            </p>
+                        </div>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <span class="badge bg-info me-2">
+                                <i class="fas fa-clock me-1"></i>' . date('Y-m-d H:i') . '
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center py-4">
+                                    <div class="display-4 text-primary mb-2">' . $qqBotsCount . '</div>
+                                    <h5 class="card-title">
+                                        <i class="fas fa-robot me-2"></i>官方QQ机器人
+                                    </h5>
+                                    <a href="/admin/bots/qq" class="btn btn-outline-primary btn-sm mt-3">
+                                        <i class="fas fa-plus me-2"></i>管理
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center py-4">
+                                    <div class="display-4 text-success mb-2">' . $napcatBotsCount . '</div>
+                                    <h5 class="card-title">
+                                        <i class="fas fa-terminal me-2"></i>NapCat机器人
+                                    </h5>
+                                    <a href="/admin/bots/napcat" class="btn btn-outline-success btn-sm mt-3">
+                                        <i class="fas fa-plus me-2"></i>管理
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center py-4">
+                                    <div class="display-4 text-info mb-2">' . $messageLogsCount . '</div>
+                                    <h5 class="card-title">
+                                        <i class="fas fa-envelope me-2"></i>消息日志
+                                    </h5>
+                                    <a href="/admin/logs" class="btn btn-outline-info btn-sm mt-3">
+                                        <i class="fas fa-eye me-2"></i>查看
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-bolt me-2"></i>快速操作
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-grid gap-2">
+                                        <a href="/admin/bots/qq" class="btn btn-primary">
+                                            <i class="fas fa-plus me-2"></i>添加官方QQ机器人
+                                        </a>
+                                        <a href="/admin/bots/napcat" class="btn btn-success">
+                                            <i class="fas fa-plus me-2"></i>添加NapCat机器人
+                                        </a>
+                                        <a href="/admin/settings" class="btn btn-secondary">
+                                            <i class="fas fa-cog me-2"></i>系统设置
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-server me-2"></i>系统信息
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="fab fa-php me-2 text-primary"></i>PHP版本</span>
+                                            <span class="badge bg-primary">' . PHP_VERSION . '</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="fas fa-sync me-2 text-success"></i>Swoole版本</span>
+                                            <span class="badge bg-success">' . SWOOLE_VERSION . '</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="fas fa-clock me-2 text-info"></i>服务器时间</span>
+                                            <span class="badge bg-info">' . date('Y-m-d H:i:s') . '</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="fas fa-database me-2 text-warning"></i>数据库状态</span>
+                                            <span class="badge bg-success"><i class="fas fa-check me-1"></i>正常</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '控制台 - Sheng_Bot'));
     }
@@ -296,16 +715,119 @@ class AdminController
         $bots = $pdo->query("SELECT * FROM qq_bots ORDER BY id DESC")->fetchAll();
         
         $botsHtml = '';
-        foreach ($bots as $bot) {
-            $sandbox = $bot['sandbox'] ? '<span class="badge bg-success">是</span>' : '<span class="badge bg-secondary">否</span>';
-            $botsHtml .= '<tr><td>' . $bot['id'] . '</td><td>' . htmlspecialchars($bot['appid']) . '</td><td>' . htmlspecialchars(substr($bot['secret'], 0, 10)) . '...</td><td>' . $sandbox . '</td><td>' . $bot['created_at'] . '</td><td><form method="POST" action="/admin/bots/qq/delete" style="display: inline;"><input type="hidden" name="id" value="' . $bot['id'] . '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form></td></tr>';
+        if (!empty($bots)) {
+            foreach ($bots as $bot) {
+                $sandbox = $bot['sandbox'] ? 
+                    '<span class="badge bg-success"><i class="fas fa-check me-1"></i>沙箱</span>' : 
+                    '<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>正式</span>';
+                $botsHtml .= '<tr class="animate-fadeIn">
+                    <td><strong>#' . $bot['id'] . '</strong></td>
+                    <td><code>' . htmlspecialchars($bot['appid']) . '</code></td>
+                    <td><code>' . htmlspecialchars(substr($bot['secret'], 0, 10)) . '...</code></td>
+                    <td>' . $sandbox . '</td>
+                    <td><small class="text-muted">' . $bot['created_at'] . '</small></td>
+                    <td>
+                        <form method="POST" action="/admin/bots/qq/delete" class="d-inline" onsubmit="return confirmDelete(event, \'确定要删除这个机器人吗？\');">
+                            <input type="hidden" name="id" value="' . $bot['id'] . '">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>';
+            }
+        } else {
+            $botsHtml = '<tr><td colspan="6" class="text-center text-muted py-5">
+                <i class="fas fa-robot fa-3x mb-3 opacity-25"></i>
+                <p class="mb-0">暂无机器人</p>
+                <small>点击上方按钮添加第一个机器人</small>
+            </td></tr>';
         }
         
-        if (empty($bots)) {
-            $botsHtml = '<tr><td colspan="6" class="text-center text-muted py-4">暂无机器人</td></tr>';
-        }
-        
-        $content = $this->sidebar('qq') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">官方QQ机器人</h1></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">添加机器人</h5></div><div class="card-body"><form method="POST" action="/admin/bots/qq/add"><div class="row"><div class="col-md-4 mb-3"><label class="form-label">AppID</label><input type="text" name="appid" class="form-control" required></div><div class="col-md-4 mb-3"><label class="form-label">Secret</label><input type="text" name="secret" class="form-control" required></div><div class="col-md-2 mb-3"><label class="form-label">&nbsp;</label><div class="form-check"><input type="checkbox" name="sandbox" class="form-check-input" id="sandbox" checked><label class="form-check-label" for="sandbox">沙箱模式</label></div></div><div class="col-md-2 mb-3"><label class="form-label">&nbsp;</label><button type="submit" class="btn btn-primary w-100">添加</button></div></div></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">机器人列表</h5></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>ID</th><th>AppID</th><th>Secret</th><th>沙箱模式</th><th>添加时间</th><th>操作</th></tr></thead><tbody>' . $botsHtml . '</tbody></table></div></div></div></main></div></div>';
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('qq') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-robot me-2 text-primary"></i>官方QQ机器人
+                            </h1>
+                            <p class="text-muted mb-0">管理您的官方QQ机器人账号</p>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus me-2"></i>添加机器人
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="/admin/bots/qq/add" class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">
+                                        <i class="fas fa-id-card me-2"></i>AppID
+                                    </label>
+                                    <input type="text" name="appid" class="form-control" required 
+                                           placeholder="请输入AppID">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">
+                                        <i class="fas fa-key me-2"></i>Secret
+                                    </label>
+                                    <input type="text" name="secret" class="form-control" required 
+                                           placeholder="请输入Secret密钥">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">
+                                        <i class="fas fa-shield-alt me-2"></i>沙箱模式
+                                    </label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input type="checkbox" name="sandbox" class="form-check-input" 
+                                               id="sandbox" checked>
+                                        <label class="form-check-label" for="sandbox">启用</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>机器人列表
+                                <span class="badge bg-light text-dark ms-2">' . count($bots) . '</span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="fas fa-hashtag me-2"></i>ID</th>
+                                            <th><i class="fas fa-id-card me-2"></i>AppID</th>
+                                            <th><i class="fas fa-key me-2"></i>Secret</th>
+                                            <th><i class="fas fa-cog me-2"></i>模式</th>
+                                            <th><i class="fas fa-clock me-2"></i>添加时间</th>
+                                            <th><i class="fas fa-tools me-2"></i>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>' . $botsHtml . '</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '官方QQ机器人 - Sheng_Bot'));
     }
@@ -344,16 +866,116 @@ class AdminController
         $bots = $pdo->query("SELECT * FROM napcat_bots ORDER BY id DESC")->fetchAll();
         
         $botsHtml = '';
-        foreach ($bots as $bot) {
-            $token = $bot['token'] ? htmlspecialchars(substr($bot['token'], 0, 10)) . '...' : '-';
-            $botsHtml .= '<tr><td>' . $bot['id'] . '</td><td>' . htmlspecialchars($bot['qq']) . '</td><td>' . htmlspecialchars($bot['http_url']) . '</td><td>' . $token . '</td><td>' . $bot['created_at'] . '</td><td><form method="POST" action="/admin/bots/napcat/delete" style="display: inline;"><input type="hidden" name="id" value="' . $bot['id'] . '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form></td></tr>';
+        if (!empty($bots)) {
+            foreach ($bots as $bot) {
+                $token = $bot['token'] ? 
+                    '<code>' . htmlspecialchars(substr($bot['token'], 0, 10)) . '...</code>' : 
+                    '<span class="badge bg-secondary">无Token</span>';
+                $botsHtml .= '<tr class="animate-fadeIn">
+                    <td><strong>#' . $bot['id'] . '</strong></td>
+                    <td><code>' . htmlspecialchars($bot['qq']) . '</code></td>
+                    <td><small>' . htmlspecialchars($bot['http_url']) . '</small></td>
+                    <td>' . $token . '</td>
+                    <td><small class="text-muted">' . $bot['created_at'] . '</small></td>
+                    <td>
+                        <form method="POST" action="/admin/bots/napcat/delete" class="d-inline" onsubmit="return confirmDelete(event, \'确定要删除这个机器人吗？\');">
+                            <input type="hidden" name="id" value="' . $bot['id'] . '">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>';
+            }
+        } else {
+            $botsHtml = '<tr><td colspan="6" class="text-center text-muted py-5">
+                <i class="fas fa-terminal fa-3x mb-3 opacity-25"></i>
+                <p class="mb-0">暂无机器人</p>
+                <small>点击上方按钮添加第一个机器人</small>
+            </td></tr>';
         }
         
-        if (empty($bots)) {
-            $botsHtml = '<tr><td colspan="6" class="text-center text-muted py-4">暂无机器人</td></tr>';
-        }
-        
-        $content = $this->sidebar('napcat') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">NapCat机器人</h1></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">添加机器人</h5></div><div class="card-body"><form method="POST" action="/admin/bots/napcat/add"><div class="row"><div class="col-md-3 mb-3"><label class="form-label">QQ号</label><input type="text" name="qq" class="form-control" required></div><div class="col-md-5 mb-3"><label class="form-label">HTTP地址</label><input type="text" name="http_url" class="form-control" placeholder="http://127.0.0.1:3000" required></div><div class="col-md-3 mb-3"><label class="form-label">Token</label><input type="text" name="token" class="form-control"></div><div class="col-md-1 mb-3"><label class="form-label">&nbsp;</label><button type="submit" class="btn btn-success w-100">添加</button></div></div></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">机器人列表</h5></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>ID</th><th>QQ号</th><th>HTTP地址</th><th>Token</th><th>添加时间</th><th>操作</th></tr></thead><tbody>' . $botsHtml . '</tbody></table></div></div></div></main></div></div>';
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('napcat') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-terminal me-2 text-success"></i>NapCat机器人
+                            </h1>
+                            <p class="text-muted mb-0">管理您的NapCat机器人连接</p>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-success">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus me-2"></i>添加机器人
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="/admin/bots/napcat/add" class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">
+                                        <i class="fas fa-user me-2"></i>QQ号
+                                    </label>
+                                    <input type="text" name="qq" class="form-control" required 
+                                           placeholder="请输入QQ号">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">
+                                        <i class="fas fa-link me-2"></i>HTTP地址
+                                    </label>
+                                    <input type="text" name="http_url" class="form-control" 
+                                           placeholder="http://127.0.0.1:3000" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">
+                                        <i class="fas fa-key me-2"></i>Token
+                                    </label>
+                                    <input type="text" name="token" class="form-control" 
+                                           placeholder="可选">
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>机器人列表
+                                <span class="badge bg-light text-dark ms-2">' . count($bots) . '</span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="fas fa-hashtag me-2"></i>ID</th>
+                                            <th><i class="fas fa-user me-2"></i>QQ号</th>
+                                            <th><i class="fas fa-link me-2"></i>HTTP地址</th>
+                                            <th><i class="fas fa-key me-2"></i>Token</th>
+                                            <th><i class="fas fa-clock me-2"></i>添加时间</th>
+                                            <th><i class="fas fa-tools me-2"></i>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>' . $botsHtml . '</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, 'NapCat机器人 - Sheng_Bot'));
     }
@@ -395,25 +1017,88 @@ class AdminController
         $logsHtml = '';
         if (!empty($logs)) {
             foreach ($logs as $log) {
-                $botTypeLabel = htmlspecialchars($log['bot_type']);
-                $botId = htmlspecialchars($log['bot_id']);
-                $userId = htmlspecialchars($log['user_id'] ?? '-');
-                $groupId = htmlspecialchars($log['group_id'] ?? '-');
-                $msgType = htmlspecialchars($log['message_type'] ?? '-');
+                $botTypeLabel = $log['bot_type'] === 'qq' ? 
+                    '<span class="badge bg-primary"><i class="fas fa-robot me-1"></i>QQ</span>' : 
+                    '<span class="badge bg-success"><i class="fas fa-terminal me-1"></i>NapCat</span>';
                 $content = htmlspecialchars($log['content'] ?? '-');
-                $createdAt = htmlspecialchars($log['created_at']);
-                $contentShort = substr($content, 0, 50);
-                if (strlen($content) > 50) $contentShort .= '...';
-                $logsHtml .= '<tr><td>' . $botTypeLabel . '</td><td>' . $botId . '</td><td>' . $userId . '</td><td>' . $groupId . '</td><td>' . $msgType . '</td><td>' . $contentShort . '</td><td>' . $createdAt . '</td></tr>';
+                $contentShort = strlen($content) > 50 ? substr($content, 0, 50) . '...' : $content;
+                
+                $logsHtml .= '<tr class="animate-fadeIn">
+                    <td>' . $botTypeLabel . '</td>
+                    <td><code>' . htmlspecialchars($log['bot_id']) . '</code></td>
+                    <td><small>' . htmlspecialchars($log['user_id'] ?? '-') . '</small></td>
+                    <td><small>' . htmlspecialchars($log['group_id'] ?? '-') . '</small></td>
+                    <td><span class="badge bg-secondary">' . htmlspecialchars($log['message_type'] ?? '-') . '</span></td>
+                    <td><small data-bs-toggle="tooltip" title="' . $content . '">' . $contentShort . '</small></td>
+                    <td><small class="text-muted">' . $log['created_at'] . '</small></td>
+                </tr>';
             }
         } else {
-            $logsHtml = '<tr><td colspan="7" class="text-center text-muted py-4">暂无消息日志</td></tr>';
+            $logsHtml = '<tr><td colspan="7" class="text-center text-muted py-5">
+                <i class="fas fa-envelope-open fa-3x mb-3 opacity-25"></i>
+                <p class="mb-0">暂无消息日志</p>
+            </td></tr>';
         }
         
         $qqSelected = $botType === 'qq' ? 'selected' : '';
         $napcatSelected = $botType === 'napcat' ? 'selected' : '';
         
-        $content = $this->sidebar('logs') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">消息日志</h1><div class="btn-toolbar mb-2 mb-md-0"><form method="GET" action="/admin/logs" class="d-flex"><select name="bot_type" class="form-select me-2" style="width:200px;"><option value="">全部机器人</option><option value="qq" ' . $qqSelected . '>QQ官方机器人</option><option value="napcat" ' . $napcatSelected . '>NapCat机器人</option></select><button type="submit" class="btn btn-primary">筛选</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">消息记录</h5></div><div class="card-body p-0"><div class="table-responsive" style="max-height:600px;overflow-y:auto;"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>机器人类型</th><th>机器人ID</th><th>用户ID</th><th>群组ID</th><th>消息类型</th><th>内容</th><th>时间</th></tr></thead><tbody>' . $logsHtml . '</tbody></table></div></div></div></main></div></div>';
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('logs') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-envelope me-2 text-info"></i>消息日志
+                            </h1>
+                            <p class="text-muted mb-0">查看所有机器人的消息记录</p>
+                        </div>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <form method="GET" action="/admin/logs" class="d-flex gap-2">
+                                <select name="bot_type" class="form-select">
+                                    <option value="">全部机器人</option>
+                                    <option value="qq" ' . $qqSelected . '>QQ官方机器人</option>
+                                    <option value="napcat" ' . $napcatSelected . '>NapCat机器人</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-2"></i>筛选
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>消息记录
+                                <span class="badge bg-light text-dark ms-2">' . count($logs) . ' 条</span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th><i class="fas fa-robot me-2"></i>类型</th>
+                                            <th><i class="fas fa-id-badge me-2"></i>机器人ID</th>
+                                            <th><i class="fas fa-user me-2"></i>用户ID</th>
+                                            <th><i class="fas fa-users me-2"></i>群组ID</th>
+                                            <th><i class="fas fa-tag me-2"></i>消息类型</th>
+                                            <th><i class="fas fa-comment me-2"></i>内容</th>
+                                            <th><i class="fas fa-clock me-2"></i>时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>' . $logsHtml . '</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '消息日志 - Sheng_Bot'));
     }
@@ -432,28 +1117,98 @@ class AdminController
             'critical' => 'dark'
         ];
         
+        $levelIcons = [
+            'debug' => 'fa-bug',
+            'info' => 'fa-info-circle',
+            'warning' => 'fa-exclamation-triangle',
+            'error' => 'fa-times-circle',
+            'critical' => 'fa-skull'
+        ];
+        
         $logsHtml = '';
         if (!empty($logs)) {
             foreach ($logs as $log) {
                 $levelClass = $levelColors[$log['level']] ?? 'secondary';
-                $levelLabel = '<span class="badge bg-' . $levelClass . '">' . strtoupper(htmlspecialchars($log['level'])) . '</span>';
+                $levelIcon = $levelIcons[$log['level']] ?? 'fa-circle';
+                $levelLabel = '<span class="badge bg-' . $levelClass . '">
+                    <i class="fas ' . $levelIcon . ' me-1"></i>' . strtoupper(htmlspecialchars($log['level'])) . '
+                </span>';
                 $message = htmlspecialchars($log['message']);
-                $context = $log['context'] ? htmlspecialchars($log['context']) : '-';
-                $createdAt = htmlspecialchars($log['created_at']);
-                $contextHtml = $context !== '-' ? '<code class="small">' . $context . '</code>' : '-';
-                $logsHtml .= '<tr><td>' . $levelLabel . '</td><td>' . $message . '</td><td>' . $contextHtml . '</td><td>' . $createdAt . '</td></tr>';
+                $context = $log['context'] ? htmlspecialchars($log['context']) : '';
+                $contextHtml = $context ? '<code class="d-block">' . $context . '</code>' : '-';
+                
+                $logsHtml .= '<tr class="animate-fadeIn">
+                    <td>' . $levelLabel . '</td>
+                    <td><small>' . $message . '</small></td>
+                    <td style="max-width: 300px;"><small>' . $contextHtml . '</small></td>
+                    <td><small class="text-muted">' . $log['created_at'] . '</small></td>
+                </tr>';
             }
         } else {
-            $logsHtml = '<tr><td colspan="4" class="text-center text-muted py-4">暂无系统日志</td></tr>';
+            $logsHtml = '<tr><td colspan="4" class="text-center text-muted py-5">
+                <i class="fas fa-clipboard-list fa-3x mb-3 opacity-25"></i>
+                <p class="mb-0">暂无系统日志</p>
+            </td></tr>';
         }
         
-        $debugSelected = $level === 'debug' ? 'selected' : '';
-        $infoSelected = $level === 'info' ? 'selected' : '';
-        $warningSelected = $level === 'warning' ? 'selected' : '';
-        $errorSelected = $level === 'error' ? 'selected' : '';
-        $criticalSelected = $level === 'critical' ? 'selected' : '';
+        $levels = ['debug', 'info', 'warning', 'error', 'critical'];
+        $levelOptions = '<option value="">全部级别</option>';
+        foreach ($levels as $lvl) {
+            $selected = $level === $lvl ? 'selected' : '';
+            $levelOptions .= '<option value="' . $lvl . '" ' . $selected . '>' . strtoupper($lvl) . '</option>';
+        }
         
-        $content = $this->sidebar('system') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统日志</h1><div class="btn-toolbar mb-2 mb-md-0"><form method="GET" action="/admin/system/logs" class="d-flex"><select name="level" class="form-select me-2" style="width:200px;"><option value="">全部级别</option><option value="debug" ' . $debugSelected . '>DEBUG</option><option value="info" ' . $infoSelected . '>INFO</option><option value="warning" ' . $warningSelected . '>WARNING</option><option value="error" ' . $errorSelected . '>ERROR</option><option value="critical" ' . $criticalSelected . '>CRITICAL</option></select><button type="submit" class="btn btn-primary">筛选</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">系统日志</h5></div><div class="card-body p-0"><div class="table-responsive" style="max-height:600px;overflow-y:auto;"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>级别</th><th>消息</th><th>上下文</th><th>时间</th></tr></thead><tbody>' . $logsHtml . '</tbody></table></div></div></div></main></div></div>';
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('system') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-clipboard-list me-2 text-warning"></i>系统日志
+                            </h1>
+                            <p class="text-muted mb-0">监控系统运行状态和错误信息</p>
+                        </div>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <form method="GET" action="/admin/system/logs" class="d-flex gap-2">
+                                <select name="level" class="form-select">
+                                    ' . $levelOptions . '
+                                </select>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter me-2"></i>筛选
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>系统日志
+                                <span class="badge bg-light text-dark ms-2">' . count($logs) . ' 条</span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th style="width: 120px;"><i class="fas fa-flag me-2"></i>级别</th>
+                                            <th><i class="fas fa-comment me-2"></i>消息</th>
+                                            <th style="width: 300px;"><i class="fas fa-code me-2"></i>上下文</th>
+                                            <th style="width: 180px;"><i class="fas fa-clock me-2"></i>时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>' . $logsHtml . '</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '系统日志 - Sheng_Bot'));
     }
@@ -472,7 +1227,7 @@ class AdminController
         $queryCacheTtl = $this->db->getConfig('query_cache_ttl', 300);
         $queryCacheMaxSize = $this->db->getConfig('query_cache_max_size', 1000);
         $logLevel = htmlspecialchars($this->db->getConfig('log_level', 'info'));
-        $logMaxFileSize = $this->db->getConfig('log_max_file_size', 10 * 1024 * 1024);
+        $logMaxFileSize = $this->db->getConfig('log_max_file_size', 10 * 1024 * 1024) / (1024 * 1024);
         $logMaxFiles = $this->db->getConfig('log_max_files', 10);
         $logToDatabase = $this->db->getConfig('log_to_database', true) ? 'checked' : '';
         $logToFile = $this->db->getConfig('log_to_file', true) ? 'checked' : '';
@@ -483,7 +1238,227 @@ class AdminController
         $errorSel = $logLevel === 'error' ? 'selected' : '';
         $criticalSel = $logLevel === 'critical' ? 'selected' : '';
         
-        $content = $this->sidebar('settings') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统设置</h1></div><div class="row"><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">基本设置</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save"><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="' . $siteName . '"></div><div class="mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="' . $domain . '"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="' . $httpPort . '"></div><div class="col-md-6 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="' . $httpsPort . '"></div></div><button type="submit" class="btn btn-primary">保存设置</button></form></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">修改密码</h5></div><div class="card-body"><form method="POST" action="/admin/settings/password"><div class="mb-3"><label class="form-label">原密码</label><input type="password" name="old_password" class="form-control" required></div><div class="mb-3"><label class="form-label">新密码</label><input type="password" name="new_password" class="form-control" required></div><div class="mb-3"><label class="form-label">确认新密码</label><input type="password" name="confirm_password" class="form-control" required></div><button type="submit" class="btn btn-success">修改密码</button></form></div></div></div><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">数据库连接池</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save-advanced"><div class="row"><div class="col-md-4 mb-3"><label class="form-label">最大连接数</label><input type="number" name="db_pool_max_size" class="form-control" value="' . $dbPoolMaxSize . '"></div><div class="col-md-4 mb-3"><label class="form-label">最小连接数</label><input type="number" name="db_pool_min_size" class="form-control" value="' . $dbPoolMinSize . '"></div><div class="col-md-4 mb-3"><label class="form-label">超时时间(秒)</label><input type="number" name="db_pool_timeout" class="form-control" value="' . $dbPoolTimeout . '"></div></div></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">查询缓存</h5></div><div class="card-body"><div class="form-check mb-3"><input type="checkbox" name="query_cache_enabled" class="form-check-input" id="cacheEnabled" ' . $queryCacheEnabled . '><label class="form-check-label" for="cacheEnabled">启用查询缓存</label></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">缓存TTL(秒)</label><input type="number" name="query_cache_ttl" class="form-control" value="' . $queryCacheTtl . '"></div><div class="col-md-6 mb-3"><label class="form-label">最大缓存数</label><input type="number" name="query_cache_max_size" class="form-control" value="' . $queryCacheMaxSize . '"></div></div></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">日志系统</h5></div><div class="card-body"><div class="mb-3"><label class="form-label">日志级别</label><select name="log_level" class="form-select"><option value="debug" ' . $debugSel . '>DEBUG</option><option value="info" ' . $infoSel . '>INFO</option><option value="warning" ' . $warningSel . '>WARNING</option><option value="error" ' . $errorSel . '>ERROR</option><option value="critical" ' . $criticalSel . '>CRITICAL</option></select></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">单个日志文件最大(MB)</label><input type="number" name="log_max_file_size_mb" class="form-control" value="' . intval($logMaxFileSize / 1024 / 1024) . '"></div><div class="col-md-6 mb-3"><label class="form-label">保留日志文件数</label><input type="number" name="log_max_files" class="form-control" value="' . $logMaxFiles . '"></div></div><div class="form-check mb-2"><input type="checkbox" name="log_to_database" class="form-check-input" id="logToDb" ' . $logToDatabase . '><label class="form-check-label" for="logToDb">保存到数据库</label></div><div class="form-check mb-3"><input type="checkbox" name="log_to_file" class="form-check-input" id="logToFile" ' . $logToFile . '><label class="form-check-label" for="logToFile">保存到文件</label></div><button type="submit" class="btn btn-primary">保存高级设置</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
+        $content = '<div class="container-fluid">
+            ' . $this->mobileHeader() . '
+            <div class="row">
+                ' . $this->sidebar('settings') . '
+                
+                <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="fas fa-cog me-2 text-secondary"></i>系统设置
+                            </h1>
+                            <p class="text-muted mb-0">配置系统各项参数</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-globe me-2"></i>基本设置
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="POST" action="/admin/settings/save">
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                <i class="fas fa-tag me-2"></i>站点名称
+                                            </label>
+                                            <input type="text" name="site_name" class="form-control" 
+                                                   value="' . $siteName . '">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                <i class="fas fa-server me-2"></i>监听地址
+                                            </label>
+                                            <input type="text" name="domain" class="form-control" 
+                                                   value="' . $domain . '">
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-door-open me-2"></i>HTTP端口
+                                                </label>
+                                                <input type="number" name="http_port" class="form-control" 
+                                                       value="' . $httpPort . '">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-lock me-2"></i>HTTPS端口
+                                                </label>
+                                                <input type="number" name="https_port" class="form-control" 
+                                                       value="' . $httpsPort . '">
+                                            </div>
+                                        </div>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-save me-2"></i>保存设置
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-warning">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-key me-2"></i>修改密码
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="POST" action="/admin/settings/password">
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                <i class="fas fa-lock me-2"></i>原密码
+                                            </label>
+                                            <input type="password" name="old_password" class="form-control" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                <i class="fas fa-key me-2"></i>新密码
+                                            </label>
+                                            <input type="password" name="new_password" class="form-control" required>
+                                        </div>
+                                        <div class="mb-4">
+                                            <label class="form-label">
+                                                <i class="fas fa-check-double me-2"></i>确认新密码
+                                            </label>
+                                            <input type="password" name="confirm_password" class="form-control" required>
+                                        </div>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="fas fa-key me-2"></i>修改密码
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-database me-2"></i>数据库连接池
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="POST" action="/admin/settings/save-advanced">
+                                        <div class="row">
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-users me-2"></i>最大连接数
+                                                </label>
+                                                <input type="number" name="db_pool_max_size" class="form-control" 
+                                                       value="' . $dbPoolMaxSize . '">
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-user me-2"></i>最小连接数
+                                                </label>
+                                                <input type="number" name="db_pool_min_size" class="form-control" 
+                                                       value="' . $dbPoolMinSize . '">
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-clock me-2"></i>超时(秒)
+                                                </label>
+                                                <input type="number" name="db_pool_timeout" class="form-control" 
+                                                       value="' . $dbPoolTimeout . '">
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        
+                                        <h6 class="mb-3">
+                                            <i class="fas fa-bolt me-2 text-warning"></i>查询缓存
+                                        </h6>
+                                        <div class="form-check form-switch mb-3">
+                                            <input type="checkbox" name="query_cache_enabled" class="form-check-input" 
+                                                   id="queryCacheEnabled" ' . $queryCacheEnabled . '>
+                                            <label class="form-check-label" for="queryCacheEnabled">
+                                                启用查询缓存
+                                            </label>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-hourglass-half me-2"></i>缓存TTL(秒)
+                                                </label>
+                                                <input type="number" name="query_cache_ttl" class="form-control" 
+                                                       value="' . $queryCacheTtl . '">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-boxes me-2"></i>最大缓存数
+                                                </label>
+                                                <input type="number" name="query_cache_max_size" class="form-control" 
+                                                       value="' . $queryCacheMaxSize . '">
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        
+                                        <h6 class="mb-3">
+                                            <i class="fas fa-clipboard-list me-2 text-info"></i>日志系统
+                                        </h6>
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                <i class="fas fa-flag me-2"></i>日志级别
+                                            </label>
+                                            <select name="log_level" class="form-select">
+                                                <option value="debug" ' . $debugSel . '>DEBUG</option>
+                                                <option value="info" ' . $infoSel . '>INFO</option>
+                                                <option value="warning" ' . $warningSel . '>WARNING</option>
+                                                <option value="error" ' . $errorSel . '>ERROR</option>
+                                                <option value="critical" ' . $criticalSel . '>CRITICAL</option>
+                                            </select>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-file me-2"></i>单个文件大小(MB)
+                                                </label>
+                                                <input type="number" name="log_max_file_size_mb" class="form-control" 
+                                                       value="' . $logMaxFileSize . '">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">
+                                                    <i class="fas fa-folder me-2"></i>最大文件数
+                                                </label>
+                                                <input type="number" name="log_max_files" class="form-control" 
+                                                       value="' . $logMaxFiles . '">
+                                            </div>
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input type="checkbox" name="log_to_database" class="form-check-input" 
+                                                   id="logToDatabase" ' . $logToDatabase . '>
+                                            <label class="form-check-label" for="logToDatabase">
+                                                <i class="fas fa-database me-2"></i>记录到数据库
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-switch mb-4">
+                                            <input type="checkbox" name="log_to_file" class="form-check-input" 
+                                                   id="logToFile" ' . $logToFile . '>
+                                            <label class="form-check-label" for="logToFile">
+                                                <i class="fas fa-file-alt me-2"></i>记录到文件
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="fas fa-save me-2"></i>保存高级设置
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>';
         
         $response->end($this->html($content, '系统设置 - Sheng_Bot'));
     }
