@@ -38,6 +38,7 @@ if (str_starts_with($uri, '/admin')) {
         public $get = [];
         public $post = [];
         public $files = [];
+        public $cookie = [];
         
         public function __construct() {
             $this->server = $_SERVER;
@@ -45,6 +46,7 @@ if (str_starts_with($uri, '/admin')) {
             $this->post = $_POST;
             $this->files = $_FILES;
             $this->header = getallheaders() ?: [];
+            $this->cookie = $_COOKIE;
         }
         
         public function rawContent() {
@@ -71,6 +73,10 @@ if (str_starts_with($uri, '/admin')) {
             header("$key: $value");
         }
         
+        public function cookie($name, $value, $expire = 0, $path = '/', $domain = '', $secure = false, $httponly = false) {
+            setcookie($name, $value, $expire, $path, $domain, $secure, $httponly);
+        }
+        
         public function end($content) {
             echo $content;
             exit;
@@ -81,7 +87,8 @@ if (str_starts_with($uri, '/admin')) {
         $adminController->handle($mockRequest, $mockResponse);
     } catch (Throwable $e) {
         http_response_code(500);
-        echo 'Internal Server Error: ' . $e->getMessage();
+        echo 'Internal Server Error: ' . $e->getMessage() . "\n";
+        echo "<pre>" . $e->getTraceAsString() . "</pre>";
     }
 } else {
     // 静态文件处理
