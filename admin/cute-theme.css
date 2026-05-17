@@ -578,10 +578,22 @@ body::before {
   
   .cute-sidebar {
     width: 100%;
+    position: static;
   }
   
   .logo-title {
     font-size: 2.4rem;
+  }
+  
+  .cute-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  
+  .cute-nav-link {
+    font-size: 0.9rem;
+    padding: 12px 14px;
   }
 }
 
@@ -594,8 +606,37 @@ body::before {
     font-size: 2rem;
   }
   
+  .subtitle {
+    font-size: 0.9rem;
+  }
+  
   .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .stat-card {
+    padding: 16px 12px;
+  }
+  
+  .stat-value {
+    font-size: 2.2rem;
+  }
+  
+  .stat-label {
+    font-size: 0.9rem;
+  }
+  
+  .cute-card {
+    padding: 16px;
+  }
+  
+  .cute-form-row {
     grid-template-columns: 1fr;
+  }
+  
+  .cute-nav {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

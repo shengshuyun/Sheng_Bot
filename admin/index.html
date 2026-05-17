@@ -1,159 +1,85 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌸 Sheng_Bot - 超级机器人管理</title>
-    
-    <!-- 超可爱主题 -->
-    <link rel="stylesheet" href="/admin/cute-theme.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌸 Sheng_Bot - 超级机器人管理</title>
+  
+  <!-- 超可爱主题 -->
+  <link rel="stylesheet" href="/admin/cute-theme.css">
 </head>
 <body>
-    <!-- 应用容器 -->
-    <div class="app-container">
-        
-        <!-- 可爱头部 -->
-        <header class="cute-header">
-            <h1 class="logo-title">
-                <span class="logo-emoji">🌸</span>
-                S h e n g _ B o t
-                <span class="logo-emoji">✨</span>
-            </h1>
-            <p class="subtitle">可 爱 机 器 人 管 理 后 台 ～</p>
-        </header>
-        
-        <!-- 内容区域 -->
-        <div class="content-wrapper">
-            
-            <!-- 侧边栏 -->
-            <aside class="cute-sidebar">
-                <div class="sidebar-title">
-                    <h3>🌸 功能菜单</h3>
-                </div>
-                <nav>
-                    <ul class="cute-nav">
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link active" data-page="dashboard">
-                                <span class="nav-icon">🏠</span>
-                                仪表板
-                            </a>
-                        </li>
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link" data-page="qqBots">
-                                <span class="nav-icon">🤖</span>
-                                官方QQ机器人
-                            </a>
-                        </li>
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link" data-page="napcatBots">
-                                <span class="nav-icon">💻</span>
-                                NapCat机器人
-                            </a>
-                        </li>
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link" data-page="logs">
-                                <span class="nav-icon">📨</span>
-                                消息日志
-                            </a>
-                        </li>
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link" data-page="system">
-                                <span class="nav-icon">📋</span>
-                                系统日志
-                            </a>
-                        </li>
-                        <li>
-                            <a href="javascript:void(0)" class="cute-nav-link" data-page="settings">
-                                <span class="nav-icon">⚙️</span>
-                                系统设置
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-            </aside>
-            
-            <!-- 主内容区 -->
-            <main class="cute-main">
-                <!-- 默认显示仪表盘 -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">3</div>
-                        <div class="stat-label">🤖 QQ 机器人</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">2</div>
-                        <div class="stat-label">💻 NapCat 机器人</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">1,234</div>
-                        <div class="stat-label">📨 消息日志</div>
-                    </div>
-                </div>
-                
-                <div class="cute-card">
-                    <div class="card-header">
-                        <h3 class="card-title">✨ 快速操作</h3>
-                    </div>
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <button class="cute-btn cute-btn-primary" onclick="app.showToast('info', '功能开发中~', '敬请期待!')">
-                            🚀 添加机器人
-                        </button>
-                        <button class="cute-btn cute-btn-success" onclick="app.showToast('success', '刷新成功!', '数据已更新')">
-                            🔄 刷新数据
-                        </button>
-                        <button class="cute-btn cute-btn-primary" onclick="app.createSparkles()">
-                            ✨ 撒花
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="cute-card">
-                    <div class="card-header">
-                        <h3 class="card-title">📊 系统信息</h3>
-                    </div>
-                    <table class="cute-table">
-                        <thead>
-                            <tr>
-                                <th>项目</th>
-                                <th>状态</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>🖥️ PHP 版本</td>
-                                <td><span class="cute-badge cute-badge-primary">8.2.0</span></td>
-                            </tr>
-                            <tr>
-                                <td>⚡ Swoole 版本</td>
-                                <td><span class="cute-badge cute-badge-success">6.2.1</span></td>
-                            </tr>
-                            <tr>
-                                <td>💾 数据库</td>
-                                <td><span class="cute-badge cute-badge-success">正常</span></td>
-                            </tr>
-                            <tr>
-                                <td>⏰ 服务器时间</td>
-                                <td><span class="cute-badge cute-badge-info" id="server-time"></span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </main>
-        </div>
-    </div>
+  <!-- 应用容器 -->
+  <div class="app-container">
     
-    <!-- 可爱交互脚本 -->
-    <script src="/admin/cute-app.js"></script>
-    <script>
-        // 更新时间显示
-        function updateTime() {
-            const timeEl = document.getElementById('server-time');
-            if (timeEl) {
-                timeEl.textContent = new Date().toLocaleString('zh-CN');
-            }
-        }
-        updateTime();
-        setInterval(updateTime, 1000);
-    </script>
+    <!-- 可爱头部 -->
+    <header class="cute-header">
+      <h1 class="logo-title">
+        <span class="logo-emoji">🌸</span>
+        S h e n g _ B o t
+        <span class="logo-emoji">✨</span>
+      </h1>
+      <p class="subtitle">可 爱 机 器 人 管 理 后 台 ～</p>
+    </header>
+    
+    <!-- 内容区域 -->
+    <div class="content-wrapper">
+      
+      <!-- 侧边栏 -->
+      <aside class="cute-sidebar">
+        <div class="sidebar-title">
+          <h3>🌸 功能菜单</h3>
+        </div>
+        <nav>
+          <ul class="cute-nav">
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link active" data-page="dashboard">
+                <span class="nav-icon">🏠</span>
+                仪表板
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link" data-page="qqBots">
+                <span class="nav-icon">🤖</span>
+                官方QQ机器人
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link" data-page="napcatBots">
+                <span class="nav-icon">💻</span>
+                NapCat机器人
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link" data-page="logs">
+                <span class="nav-icon">📨</span>
+                消息日志
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link" data-page="system">
+                <span class="nav-icon">📋</span>
+                系统日志
+              </a>
+            </li>
+            <li>
+              <a href="javascript:void(0)" class="cute-nav-link" data-page="settings">
+                <span class="nav-icon">⚙️</span>
+                系统设置
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+      
+      <!-- 主内容区 -->
+      <main class="cute-main">
+        <!-- 内容由 JavaScript 动态加载 -->
+      </main>
+    </div>
+  </div>
+  
+  <!-- 可爱交互脚本 -->
+  <script src="/admin/cute-app.js"></script>
 </body>
 </html>

@@ -141,32 +141,110 @@ class AdminController
     {
         $response->header('Content-Type', 'application/json; charset=utf-8');
         
+        $method = $request->server['request_method'] ?? 'GET';
         $endpoint = substr($uri, strlen('/admin/api/'));
         $data = ['success' => true];
         
-        switch ($endpoint) {
-            case 'stats':
+        try {
+            // QQ Bots CRUD
+            if ($endpoint === 'qq-bots') {
+                $pdo = $this->db->getConnection();
+                if ($method === 'GET') {
+                    $data['bots'] = $pdo->query("SELECT * FROM qq_bots ORDER BY id DESC")->fetchAll();
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    $stmt = $pdo->prepare("INSERT INTO qq_bots (appid, secret, sandbox) VALUES (?, ?, ?)");
+                    $stmt->execute([
+                        $post['appid'] ?? '',
+                        $post['secret'] ?? '',
+                        isset($post['sandbox']) ? (int)$post['sandbox'] : 1
+                    ]);
+                    $data['id'] = $pdo->lastInsertId();
+                    $data['message'] = 'QQ机器人添加成功';
+                }
+            } elseif (preg_match('#^qq-bots/(\d+)$#', $endpoint, $matches)) {
+                $id = (int)$matches[1];
+                $pdo = $this->db->getConnection();
+                if ($method === 'DELETE') {
+                    $stmt = $pdo->prepare("DELETE FROM qq_bots WHERE id = ?");
+                    $stmt->execute([$id]);
+                    $data['message'] = 'QQ机器人删除成功';
+                }
+            }
+            
+            // NapCat Bots CRUD
+            elseif ($endpoint === 'napcat-bots') {
+                $pdo = $this->db->getConnection();
+                if ($method === 'GET') {
+                    $data['bots'] = $pdo->query("SELECT * FROM napcat_bots ORDER BY id DESC")->fetchAll();
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    $stmt = $pdo->prepare("INSERT INTO napcat_bots (qq, http_url, token) VALUES (?, ?, ?)");
+                    $stmt->execute([
+                        $post['qq'] ?? '',
+                        $post['http_url'] ?? '',
+                        $post['token'] ?? ''
+                    ]);
+                    $data['id'] = $pdo->lastInsertId();
+                    $data['message'] = 'NapCat机器人添加成功';
+                }
+            } elseif (preg_match('#^napcat-bots/(\d+)$#', $endpoint, $matches)) {
+                $id = (int)$matches[1];
+                $pdo = $this->db->getConnection();
+                if ($method === 'DELETE') {
+                    $stmt = $pdo->prepare("DELETE FROM napcat_bots WHERE id = ?");
+                    $stmt->execute([$id]);
+                    $data['message'] = 'NapCat机器人删除成功';
+                }
+            }
+            
+            // Stats
+            elseif ($endpoint === 'stats') {
                 $pdo = $this->db->getConnection();
                 $data = [
                     'qqBots' => $pdo->query("SELECT COUNT(*) FROM qq_bots")->fetchColumn(),
                     'napcatBots' => $pdo->query("SELECT COUNT(*) FROM napcat_bots")->fetchColumn(),
-                    'logs' => $pdo->query("SELECT COUNT(*) FROM message_logs")->fetchColumn()
+                    'messageLogs' => $pdo->query("SELECT COUNT(*) FROM message_logs")->fetchColumn(),
+                    'systemLogs' => $pdo->query("SELECT COUNT(*) FROM system_logs")->fetchColumn(),
+                    'phpVersion' => PHP_VERSION,
+                    'swooleVersion' => SWOOLE_VERSION ?? 'Unknown'
                 ];
-                break;
-                
-            case 'qq-bots':
+            }
+            
+            // Message Logs
+            elseif ($endpoint === 'message-logs') {
                 $pdo = $this->db->getConnection();
-                $data['bots'] = $pdo->query("SELECT * FROM qq_bots ORDER BY id DESC")->fetchAll();
-                break;
-                
-            case 'napcat-bots':
+                $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+                $data['logs'] = $this->db->getMessageLogs($limit);
+            }
+            
+            // System Logs
+            elseif ($endpoint === 'system-logs') {
                 $pdo = $this->db->getConnection();
-                $data['bots'] = $pdo->query("SELECT * FROM napcat_bots ORDER BY id DESC")->fetchAll();
-                break;
-                
-            default:
+                $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+                $data['logs'] = $this->db->getSystemLogs($limit);
+            }
+            
+            // System Settings
+            elseif ($endpoint === 'settings') {
+                if ($method === 'GET') {
+                    $data['settings'] = $this->db->getAllConfigs();
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    foreach ($post as $key => $value) {
+                        $this->db->setConfig($key, $value);
+                    }
+                    $data['message'] = '系统设置保存成功';
+                }
+            }
+            
+            else {
                 $response->status(404);
                 $data = ['success' => false, 'error' => 'Unknown endpoint'];
+            }
+        } catch (Exception $e) {
+            $response->status(500);
+            $data = ['success' => false, 'error' => $e->getMessage()];
         }
         
         $response->end(json_encode($data, JSON_UNESCAPED_UNICODE));
