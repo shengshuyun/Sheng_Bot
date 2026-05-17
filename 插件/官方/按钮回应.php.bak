@@ -1,0 +1,5 @@
+<?php
+
+if ($this->事件类型 == "INTERACTION_CREATE"){
+    $this->发送("文本", "谁？是谁？！是谁动了我的按钮！！！");
+}
