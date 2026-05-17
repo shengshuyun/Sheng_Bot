@@ -54,8 +54,7 @@ class AdminController
     {
         $session = $this->getSession($request);
         if (!$session) {
-            $token = bin2hex(random_bytes(32));
-            return $token;
+            $session = [];
         }
         
         if (isset($session[$this->csrfTokenKey])) {
@@ -310,14 +309,12 @@ class AdminController
       
       // Message Logs
       elseif ($endpoint === 'message-logs') {
-        $pdo = $this->db->getConnection();
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
         $data['logs'] = $this->db->getMessageLogs($limit);
       }
       
       // System Logs
       elseif ($endpoint === 'system-logs') {
-        $pdo = $this->db->getConnection();
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
         $data['logs'] = $this->db->getSystemLogs($limit);
       }

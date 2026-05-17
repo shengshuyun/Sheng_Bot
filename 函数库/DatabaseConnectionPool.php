@@ -15,9 +15,9 @@ class DatabaseConnectionPool
     private function __construct(string $dbPath, array $config)
     {
         $this->dbPath = $dbPath;
-        $this->minSize = $config['db_pool_min_size'] ?? 2;
-        $this->maxSize = $config['db_pool_max_size'] ?? 10;
-        $this->timeout = $config['db_pool_timeout'] ?? 5.0;
+        $this->minSize = (int)($config['db_pool_min_size'] ?? 2);
+        $this->maxSize = (int)($config['db_pool_max_size'] ?? 10);
+        $this->timeout = (float)($config['db_pool_timeout'] ?? 5.0);
     }
     
     public static function getInstance(string $dbPath, array $config = []): self
