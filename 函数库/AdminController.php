@@ -25,7 +25,7 @@ class AdminController
             'expire' => time() + 3600
         ];
         
-        $response->cookie($this->sessionIdKey, $sessionId, time() + 3600);
+        $response->cookie($this->sessionIdKey, $sessionId, time() + 3600, '/');
     }
     
     private function getSession($request)
@@ -45,7 +45,7 @@ class AdminController
     {
         $sessionId = $this->getSessionId($request);
         unset($this->sessions[$sessionId]);
-        $response->cookie($this->sessionIdKey, '', time() - 3600);
+        $response->cookie($this->sessionIdKey, '', time() - 3600, '/');
     }
     
     private function isLoggedIn($request)
@@ -405,7 +405,7 @@ class AdminController
         $httpPort = $this->db->getConfig('http_port', 9501);
         $httpsPort = $this->db->getConfig('https_port', 9502);
         
-        $content = $this->sidebar('settings') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统设置</h1></div><div class="row"><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">基本设置</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save"><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="' . $siteName . '"></div><div class="mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="' . $domain . '"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="' . $httpPort . '"></div><div class="col-md-6 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="' . $httpsPort . '"></div></div><button type="submit" class="btn btn-primary">保存设置</button></form></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">修改密码</h5></div><div class="card-body"><form method="POST" action="/admin/settings/password"><div class="mb-3"><label class="form-label">原密码</label><input type="password" name="old_password" class="form-control" required></div><div class="mb-3"><label class="form-label">新密码</label><input type="password" name="new_password" class="form-control" required></div><div class="mb-3"><label class="form-label">确认新密码</label><input type="password" name="confirm_password" class="form-control" required></div><button type="submit" class="btn btn-success">修改密码</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>SQLite版本: ' . $this->db->getConnection()->query('SELECT sqlite_version()')->fetchColumn() . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
+        $content = $this->sidebar('settings') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统设置</h1></div><div class="row"><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">基本设置</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save"><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="' . $siteName . '"></div><div class="mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="' . $domain . '"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="' . $httpPort . '"></div><div class="col-md-6 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="' . $httpsPort . '"></div></div><button type="submit" class="btn btn-primary">保存设置</button></form></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">修改密码</h5></div><div class="card-body"><form method="POST" action="/admin/settings/password"><div class="mb-3"><label class="form-label">原密码</label><input type="password" name="old_password" class="form-control" required></div><div class="mb-3"><label class="form-label">新密码</label><input type="password" name="new_password" class="form-control" required></div><div class="mb-3"><label class="form-label">确认新密码</label><input type="password" name="confirm_password" class="form-control" required></div><button type="submit" class="btn btn-success">修改密码</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
         
         $response->end($this->html($content, '系统设置 - Sheng_Bot'));
     }
