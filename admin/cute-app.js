@@ -20,7 +20,7 @@ class ShengBotApp {
     this.bindEvents();
     await this.loadDashboardData();
     this.updatePageContent('dashboard');
-    this.showToast('success', '欢迎回来~ 💕', 'Sheng_Bot 已准备好为您服务!');
+    // 移除了自动弹出的欢迎提示
   }
 
   // ================== 🌸 Floating Sakura Petals ==================
@@ -43,13 +43,19 @@ class ShengBotApp {
   // ================== 🌐 API Helper ==================
   async fetchApi(endpoint, options = {}) {
     try {
-      const response = await fetch(`/admin/api/${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
+      const fetchOptions = { ...options };
+      // 只有当 body 不是 FormData 时才设置 Content-Type
+      if (!(options.body instanceof FormData)) {
+        fetchOptions.headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
           ...options.headers
-        },
-        ...options
-      });
+        };
+      } else {
+        // FormData 不需要手动设置 Content-Type
+        fetchOptions.headers = { ...options.headers };
+      }
+      
+      const response = await fetch(`/admin/api/${endpoint}`, fetchOptions);
       return await response.json();
     } catch (error) {
       this.showToast('error', '请求失败', error.message);
@@ -578,11 +584,17 @@ class ShengBotApp {
     const formType = form.dataset.formType;
     
     try {
+      const formData = new FormData(form);
+      // 将 FormData 转换为 URLSearchParams 确保兼容性
+      const params = new URLSearchParams();
+      formData.forEach((value, key) => {
+        params.append(key, value);
+      });
+      
       if (formType === 'qq-bot') {
-        const formData = new FormData(form);
         const result = await this.fetchApi('qq-bots', {
           method: 'POST',
-          body: formData
+          body: params
         });
         
         if (result.success !== false) {
@@ -592,10 +604,9 @@ class ShengBotApp {
           this.showToast('error', '添加失败', result.error || '未知错误');
         }
       } else if (formType === 'napcat-bot') {
-        const formData = new FormData(form);
         const result = await this.fetchApi('napcat-bots', {
           method: 'POST',
-          body: formData
+          body: params
         });
         
         if (result.success !== false) {
@@ -605,7 +616,6 @@ class ShengBotApp {
           this.showToast('error', '添加失败', result.error || '未知错误');
         }
       } else if (formType === 'settings') {
-        const formData = new FormData(form);
         const data = {};
         formData.forEach((value, key) => {
           if (value === 'true') data[key] = true;
@@ -616,9 +626,6 @@ class ShengBotApp {
         
         const result = await this.fetchApi('settings', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
           body: Object.keys(data).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).join('&')
         });
         
