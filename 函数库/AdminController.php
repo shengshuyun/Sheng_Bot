@@ -77,9 +77,9 @@ class AdminController
             return;
         }
         
-        // 如果已安装但未登录，只允许访问登录页面
+        // 如果已安装但未登录，只允许访问登录相关页面
         if ($isInstalled && !$this->isLoggedIn($request) && 
-            substr($uri, 0, 11) !== '/admin/login') {
+            $uri !== '/admin/login' && $uri !== '/admin/login/do') {
             $this->redirect($response, '/admin/login');
             return;
         }
