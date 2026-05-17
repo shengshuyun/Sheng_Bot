@@ -200,7 +200,7 @@ class ShengBotApp {
   async loadTestPageData() {
     await this.loadQQBots();
     this.updateBotSelect();
-    this.handleTestTypeChange();
+    this.handleTestEventTypeChange();
   }
 
   async loadQQBots() {
@@ -248,14 +248,19 @@ class ShengBotApp {
   bindTestEvents() {
     const sendBtn = document.getElementById('test-send-btn');
     const refreshBtn = document.getElementById('test-refresh-bots-btn');
-    const typeSelect = document.getElementById('test-type-select');
+    const eventTypeSelect = document.getElementById('test-event-type-select');
+    const runAllBtn = document.getElementById('test-run-all-btn');
     
-    if (typeSelect) {
-      typeSelect.onchange = () => this.handleTestTypeChange();
+    if (eventTypeSelect) {
+      eventTypeSelect.onchange = () => this.handleTestEventTypeChange();
     }
     
     if (sendBtn) {
       sendBtn.onclick = () => this.sendTestMessage();
+    }
+    
+    if (runAllBtn) {
+      runAllBtn.onclick = () => this.runAllEventsTest();
     }
     
     if (refreshBtn) {
@@ -267,29 +272,63 @@ class ShengBotApp {
     }
   }
 
-  handleTestTypeChange() {
-    const type = document.getElementById('test-type-select')?.value;
+  handleTestEventTypeChange() {
+    const eventType = document.getElementById('test-event-type-select')?.value;
+    const userFields = document.getElementById('test-user-fields');
     const groupField = document.getElementById('test-group-field');
     const channelFields = document.getElementById('test-channel-fields');
+    const contentField = document.getElementById('test-content-field');
+    const extraFields = document.getElementById('test-extra-fields');
+    
+    if (userFields) {
+      userFields.style.display = 'flex';
+    }
     
     if (groupField) {
-      groupField.style.display = (type === 'group') ? '' : 'none';
+      groupField.style.display = (
+        eventType === 'GROUP_AT_MESSAGE_CREATE' ||
+        eventType === 'GROUP_ADD_ROBOT' || 
+        eventType === 'GROUP_DEL_ROBOT'
+      ) ? '' : 'none';
     }
     
     if (channelFields) {
-      channelFields.style.display = (type === 'channel' || type === 'direct') ? '' : 'none';
+      channelFields.style.display = (
+        eventType === 'DIRECT_MESSAGE_CREATE' || 
+        eventType === 'AT_MESSAGE_CREATE' || 
+        eventType === 'MESSAGE_CREATE' || 
+        eventType === 'GUILD_CREATE' || 
+        eventType === 'GUILD_DELETE'
+      ) ? '' : 'none';
+    }
+    
+    if (contentField) {
+      contentField.style.display = (
+        eventType === 'C2C_MESSAGE_CREATE' || 
+        eventType === 'GROUP_AT_MESSAGE_CREATE' || 
+        eventType === 'DIRECT_MESSAGE_CREATE' || 
+        eventType === 'AT_MESSAGE_CREATE' || 
+        eventType === 'MESSAGE_CREATE'
+      ) ? '' : 'none';
+    }
+    
+    if (extraFields) {
+      extraFields.style.display = (
+        eventType === 'AUTH_OP_13'
+      ) ? '' : 'none';
     }
   }
 
   async sendTestMessage() {
     const botId = document.getElementById('test-bot-select')?.value;
-    const type = document.getElementById('test-type-select')?.value;
+    const eventType = document.getElementById('test-event-type-select')?.value;
     const senderId = document.getElementById('test-sender-id')?.value;
     const groupId = document.getElementById('test-group-id')?.value;
     const channelId = document.getElementById('test-channel-id')?.value;
     const guildId = document.getElementById('test-guild-id')?.value;
     const content = document.getElementById('test-content')?.value;
-    const contentType = document.getElementById('test-content-type')?.value;
+    const eventTs = document.getElementById('test-event-ts')?.value || Date.now().toString();
+    const plainToken = document.getElementById('test-plain-token')?.value || 'test_token_123';
 
     if (!botId) {
       this.showToast('error', '错误', '请选择一个机器人');
@@ -297,50 +336,57 @@ class ShengBotApp {
       return;
     }
 
-    if (type === 'group' && !groupId) {
-      this.showToast('error', '错误', '群聊消息必须填写群号');
-      this.addTestLog('❌ 发送失败: 群聊未填写群号', 'error');
+    if (
+      (eventType === 'GROUP_AT_MESSAGE_CREATE' || eventType === 'GROUP_ADD_ROBOT' || eventType === 'GROUP_DEL_ROBOT') && 
+      !groupId
+    ) {
+      this.showToast('error', '错误', '群聊事件必须填写群号');
+      this.addTestLog('❌ 发送失败: 群聊事件未填写群号', 'error');
       return;
     }
 
-    if (type === 'channel' && (!channelId || !guildId)) {
-      this.showToast('error', '错误', '频道消息必须填写频道ID');
-      this.addTestLog('❌ 发送失败: 频道消息未填写完整ID', 'error');
+    if (
+      (eventType === 'DIRECT_MESSAGE_CREATE' || eventType === 'AT_MESSAGE_CREATE' || 
+       eventType === 'MESSAGE_CREATE' || eventType === 'GUILD_CREATE' || 
+       eventType === 'GUILD_DELETE') && 
+      (!channelId || !guildId)
+    ) {
+      this.showToast('error', '错误', '频道事件必须填写频道ID');
+      this.addTestLog('❌ 发送失败: 频道事件未填写完整ID', 'error');
       return;
     }
 
-    if (!content) {
+    const requiresContent = eventType === 'C2C_MESSAGE_CREATE' || 
+                           eventType === 'GROUP_AT_MESSAGE_CREATE' || 
+                           eventType === 'DIRECT_MESSAGE_CREATE' || 
+                           eventType === 'AT_MESSAGE_CREATE' || 
+                           eventType === 'MESSAGE_CREATE';
+    if (requiresContent && !content) {
       this.showToast('error', '错误', '请填写消息内容');
       this.addTestLog('❌ 发送失败: 消息内容为空', 'error');
       return;
     }
 
-    const typeNames = {
-      private: '单聊',
-      group: '群聊',
-      channel: '频道',
-      direct: '频道私信'
-    };
-
     try {
-      this.addTestLog(`📤 正在发送${typeNames[type]}消息...`, 'info');
+      this.addTestLog(`📤 正在发送事件: ${eventType}`, 'info');
       const result = await this.fetchApi('test/send-message', {
         method: 'POST',
         body: new URLSearchParams({
           bot_id: botId,
-          type: type,
+          event_type: eventType,
           sender_id: senderId,
           group_id: groupId,
           channel_id: channelId,
           guild_id: guildId,
           content: content,
-          content_type: contentType
+          event_ts: eventTs,
+          plain_token: plainToken
         })
       });
 
       if (result.success) {
-        this.showToast('success', '发送成功', '测试消息已推送');
-        this.addTestLog(`✅ 消息推送成功: ${contentType}`, 'success');
+        this.showToast('success', '发送成功', '测试事件已推送');
+        this.addTestLog(`✅ 事件推送成功: ${eventType}`, 'success');
         
         if (result.event) {
           this.addTestLog(`📥 官方格式: `, 'info');
@@ -353,6 +399,9 @@ class ShengBotApp {
             if (result.robot_response) {
               this.addTestLog(`📤 机器人返回: ${result.robot_response}`, 'info');
             }
+            if (result.auth_response) {
+              this.addTestLog(`🔐 鉴权响应: ${result.auth_response}`, 'success');
+            }
           } else {
             this.addTestLog(`⚠️ 机器人处理: ${result.process_note || '未处理'}`, 'warning');
             if (result.process_error) {
@@ -362,12 +411,73 @@ class ShengBotApp {
         }
       } else {
         this.showToast('error', '发送失败', result.error || '未知错误');
-        this.addTestLog(`❌ 消息推送失败: ${result.error}`, 'error');
+        this.addTestLog(`❌ 事件推送失败: ${result.error}`, 'error');
       }
     } catch (e) {
       this.showToast('error', '发送失败', e.message);
       this.addTestLog(`❌ 异常: ${e.message}`, 'error');
     }
+  }
+  
+  async runAllEventsTest() {
+    const botId = document.getElementById('test-bot-select')?.value;
+    
+    if (!botId) {
+      this.showToast('error', '错误', '请选择一个机器人');
+      this.addTestLog('❌ 批量测试失败: 未选择机器人', 'error');
+      return;
+    }
+    
+    const events = [
+      'C2C_MESSAGE_CREATE',
+      'GROUP_AT_MESSAGE_CREATE',
+      'DIRECT_MESSAGE_CREATE', 
+      'AT_MESSAGE_CREATE',
+      'MESSAGE_CREATE',
+      'FRIEND_ADD',
+      'FRIEND_DEL',
+      'GROUP_ADD_ROBOT',
+      'GROUP_DEL_ROBOT',
+      'GUILD_CREATE',
+      'GUILD_DELETE',
+      'INTERACTION_CREATE',
+      'MESSAGE_REACTION_ADD',
+      'MESSAGE_REACTION_REMOVE',
+      'AUTH_OP_13'
+    ];
+    
+    this.addTestLog('🌊 开始批量测试所有事件...', 'info');
+    this.showToast('info', '开始测试', '正在测试所有事件...');
+    
+    for (let i = 0; i < events.length; i++) {
+      await this.delay(300);
+      try {
+        await this.fetchApi('test/send-message', {
+          method: 'POST',
+          body: new URLSearchParams({
+            bot_id: botId,
+            event_type: events[i],
+            sender_id: 'test_user_' + i,
+            group_id: 'test_group_' + i,
+            channel_id: 'test_channel_' + i,
+            guild_id: 'test_guild_' + i,
+            content: '批量测试消息 #' + (i + 1),
+            event_ts: Date.now().toString(),
+            plain_token: 'test_token_' + i
+          })
+        });
+        this.addTestLog(`✅ 测试事件 ${events[i]} 完成`, 'success');
+      } catch (e) {
+        this.addTestLog(`❌ 测试事件 ${events[i]} 失败: ${e.message}`, 'error');
+      }
+    }
+    
+    this.showToast('success', '测试完成', '所有事件测试完成！');
+    this.addTestLog('🎉 批量测试完成！', 'success');
+  }
+  
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // ================== 📄 Page Templates ==================
@@ -912,7 +1022,7 @@ class ShengBotApp {
     return `
       <div class="cute-card">
         <div class="card-header">
-          <h3 class="card-title">🧪 QQ 官方机器人消息模拟测试</h3>
+          <h3 class="card-title">🧪 QQ 官方机器人完整事件测试</h3>
         </div>
         
         <div class="cute-form-row">
@@ -923,17 +1033,40 @@ class ShengBotApp {
             </select>
           </div>
           <div class="cute-form-group">
-            <label class="cute-label">消息类型 (官方事件)</label>
-            <select class="cute-select" id="test-type-select">
-              <option value="private">单聊 (C2C_MESSAGE_CREATE)</option>
-              <option value="group">群聊 @ (GROUP_AT_MESSAGE_CREATE)</option>
-              <option value="channel">频道 @ (AT_MESSAGE_CREATE)</option>
-              <option value="direct">频道私信 (DIRECT_MESSAGE_CREATE)</option>
+            <label class="cute-label">事件类型 (Event Type)</label>
+            <select class="cute-select" id="test-event-type-select">
+              <optgroup label="📨 消息类事件">
+                <option value="C2C_MESSAGE_CREATE">单聊消息 (C2C_MESSAGE_CREATE)</option>
+                <option value="GROUP_AT_MESSAGE_CREATE">群聊@ (GROUP_AT_MESSAGE_CREATE)</option>
+                <option value="DIRECT_MESSAGE_CREATE">频道私信 (DIRECT_MESSAGE_CREATE)</option>
+                <option value="AT_MESSAGE_CREATE">频道@ (AT_MESSAGE_CREATE)</option>
+                <option value="MESSAGE_CREATE">频道消息 (MESSAGE_CREATE)</option>
+              </optgroup>
+              <optgroup label="👥 好友类事件">
+                <option value="FRIEND_ADD">添加好友 (FRIEND_ADD)</option>
+                <option value="FRIEND_DEL">删除好友 (FRIEND_DEL)</option>
+              </optgroup>
+              <optgroup label="🏠 群组/频道类事件">
+                <option value="GROUP_ADD_ROBOT">加入群聊 (GROUP_ADD_ROBOT)</option>
+                <option value="GROUP_DEL_ROBOT">退出群聊 (GROUP_DEL_ROBOT)</option>
+                <option value="GUILD_CREATE">加入频道 (GUILD_CREATE)</option>
+                <option value="GUILD_DELETE">退出频道 (GUILD_DELETE)</option>
+              </optgroup>
+              <optgroup label="🔘 互动类事件">
+                <option value="INTERACTION_CREATE">按钮互动 (INTERACTION_CREATE)</option>
+              </optgroup>
+              <optgroup label="❤️ 表情类事件">
+                <option value="MESSAGE_REACTION_ADD">添加表情 (MESSAGE_REACTION_ADD)</option>
+                <option value="MESSAGE_REACTION_REMOVE">移除表情 (MESSAGE_REACTION_REMOVE)</option>
+              </optgroup>
+              <optgroup label="🔐 鉴权类事件">
+                <option value="AUTH_OP_13">鉴权事件 (Op=13)</option>
+              </optgroup>
             </select>
           </div>
         </div>
         
-        <div class="cute-form-row">
+        <div class="cute-form-row" id="test-user-fields">
           <div class="cute-form-group">
             <label class="cute-label">发送者 ID (OpenID)</label>
             <input type="text" class="cute-input" id="test-sender-id" value="123456789">
@@ -955,19 +1088,19 @@ class ShengBotApp {
           </div>
         </div>
         
-        <div class="cute-form-group">
+        <div class="cute-form-group" id="test-content-field">
           <label class="cute-label">消息内容</label>
           <textarea class="cute-input" id="test-content" rows="4">你好，这是一条官方格式的测试消息！</textarea>
         </div>
         
-        <div class="cute-form-row">
+        <div class="cute-form-row" id="test-extra-fields" style="display: none;">
           <div class="cute-form-group">
-            <label class="cute-label">内容类型</label>
-            <select class="cute-select" id="test-content-type">
-              <option value="text">纯文本</option>
-              <option value="image">图片URL</option>
-              <option value="at">@消息</option>
-            </select>
+            <label class="cute-label">事件时间戳 (event_ts)</label>
+            <input type="text" class="cute-input" id="test-event-ts" value="">
+          </div>
+          <div class="cute-form-group">
+            <label class="cute-label">Plain Token</label>
+            <input type="text" class="cute-input" id="test-plain-token" value="test_token_abc123">
           </div>
         </div>
         
@@ -978,6 +1111,9 @@ class ShengBotApp {
           <button class="cute-btn cute-btn-success" id="test-refresh-bots-btn">
             🔄 刷新机器人列表
           </button>
+          <button class="cute-btn cute-btn-info" id="test-run-all-btn">
+            🌊 测试所有事件
+          </button>
         </div>
       </div>
       
@@ -985,7 +1121,7 @@ class ShengBotApp {
         <div class="card-header">
           <h3 class="card-title">📋 推送记录</h3>
         </div>
-        <div id="test-log" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;">
+        <div id="test-log" style="max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 13px;">
           <div style="color: #888; padding: 8px;">暂无记录...</div>
         </div>
       </div>

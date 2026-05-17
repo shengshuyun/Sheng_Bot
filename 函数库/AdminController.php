@@ -286,23 +286,24 @@ class AdminController
         }
       }
       
-      // Test API - Message simulation (QQ 官方机器人消息模拟
+      // Test API - Message simulation (QQ 官方机器人消息模拟)
       elseif ($endpoint === 'test/send-message' && $method === 'POST') {
         $botId = (int)($post['bot_id'] ?? 0);
-        $msgType = $post['type'] ?? 'private'; // private/group/channel/direct
+        $eventType = $post['event_type'] ?? 'C2C_MESSAGE_CREATE';
         $senderId = $post['sender_id'] ?? '';
         $groupId = $post['group_id'] ?? '';
         $channelId = $post['channel_id'] ?? '';
         $guildId = $post['guild_id'] ?? '';
         $content = $post['content'] ?? '';
-        $contentType = $post['content_type'] ?? 'text';
-        
+        $eventTs = $post['event_ts'] ?? (string)time();
+        $plainToken = $post['plain_token'] ?? '';
+
         // Verify bot exists
         $pdo = $this->db->getConnection();
         $stmt = $pdo->prepare("SELECT * FROM qq_bots WHERE id = ?");
         $stmt->execute([$botId]);
         $bot = $stmt->fetch();
-        
+
         if (!$bot) {
           $response->status(404);
           $data['success'] = false;
@@ -312,71 +313,159 @@ class AdminController
           // Build QQ 官方格式消息对象
           $officialEvent = [
             'op' => 0,
-            't' => '',  // 事件类型
+            't' => '', // 事件类型
             'id' => uniqid('test_', true),
             'd' => [
               'id' => uniqid('msg_', true),
-              'author' => [
-                'id' => $senderId,
-                'username' => '测试用户' . $senderId
-              ],
-              'content' => $content,
               'timestamp' => date('c'),
-              'channel_id' => $channelId,
-              'guild_id' => $guildId,
-              'group_id' => $groupId
             ]
           ];
           
-          // 根据类型设置不同的值
-          switch ($msgType) {
-            case 'private':
-              $officialEvent['t'] = 'C2C_MESSAGE_CREATE';
-              break;
-            case 'group':
-              $officialEvent['t'] = 'GROUP_AT_MESSAGE_CREATE';
-              $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
-              $officialEvent['d']['group_openid'] = $groupId;
-              break;
-            case 'direct':
-              $officialEvent['t'] = 'DIRECT_MESSAGE_CREATE';
-              $officialEvent['d']['guild_id'] = $guildId;
-              break;
-            case 'channel':
-              $officialEvent['t'] = 'AT_MESSAGE_CREATE';
-              $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
-              $officialEvent['d']['channel_id'] = $channelId;
-              $officialEvent['d']['guild_id'] = $guildId;
-              break;
+          // 处理鉴权事件 (op=13)
+          if ($eventType === 'AUTH_OP_13') {
+            $officialEvent['op'] = 13;
+            $officialEvent['d'] = [
+              'plain_token' => $plainToken,
+              'event_ts' => $eventTs
+            ];
+            $officialEvent['t'] = 'READY';
+          } else {
+            // 处理其他类型事件
+            $officialEvent['t'] = $eventType;
+            
+            // 根据事件类型构建 d 字段
+            switch ($eventType) {
+              // 单聊消息
+              case 'C2C_MESSAGE_CREATE':
+                $officialEvent['d']['author'] = [
+                  'id' => $senderId,
+                  'username' => '测试用户' . $senderId
+                ];
+                $officialEvent['d']['content'] = $content;
+                break;
+                
+              // 群聊@消息
+              case 'GROUP_AT_MESSAGE_CREATE':
+                $officialEvent['d']['author'] = [
+                  'id' => $senderId,
+                  'username' => '测试用户' . $senderId
+                ];
+                $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
+                $officialEvent['d']['group_openid'] = $groupId;
+                $officialEvent['d']['group_id'] = $groupId;
+                break;
+                
+              // 频道私信
+              case 'DIRECT_MESSAGE_CREATE':
+                $officialEvent['d']['author'] = [
+                  'id' => $senderId,
+                  'username' => '测试用户' . $senderId
+                ];
+                $officialEvent['d']['content'] = $content;
+                $officialEvent['d']['guild_id'] = $guildId;
+                $officialEvent['d']['channel_id'] = $channelId;
+                break;
+                
+              // 频道@消息
+              case 'AT_MESSAGE_CREATE':
+                $officialEvent['d']['author'] = [
+                  'id' => $senderId,
+                  'username' => '测试用户' . $senderId
+                ];
+                $officialEvent['d']['content'] = '<@!' . $bot['appid'] . '> ' . $content;
+                $officialEvent['d']['channel_id'] = $channelId;
+                $officialEvent['d']['guild_id'] = $guildId;
+                break;
+                
+              // 频道普通消息
+              case 'MESSAGE_CREATE':
+                $officialEvent['d']['author'] = [
+                  'id' => $senderId,
+                  'username' => '测试用户' . $senderId
+                ];
+                $officialEvent['d']['content'] = $content;
+                $officialEvent['d']['channel_id'] = $channelId;
+                $officialEvent['d']['guild_id'] = $guildId;
+                break;
+                
+              // 添加好友
+              case 'FRIEND_ADD':
+                $officialEvent['d']['openid'] = $senderId;
+                break;
+                
+              // 删除好友
+              case 'FRIEND_DEL':
+                $officialEvent['d']['openid'] = $senderId;
+                break;
+                
+              // 加入群聊
+              case 'GROUP_ADD_ROBOT':
+                $officialEvent['d']['group_openid'] = $groupId;
+                break;
+                
+              // 退出群聊
+              case 'GROUP_DEL_ROBOT':
+                $officialEvent['d']['group_id'] = $groupId;
+                $officialEvent['d']['id'] = $groupId;
+                break;
+                
+              // 加入频道
+              case 'GUILD_CREATE':
+                $officialEvent['d']['id'] = $guildId;
+                break;
+                
+              // 退出频道
+              case 'GUILD_DELETE':
+                $officialEvent['d']['id'] = $guildId;
+                break;
+                
+              // 交互事件
+              case 'INTERACTION_CREATE':
+                $officialEvent['d']['scene'] = 'group';
+                $officialEvent['d']['group_openid'] = $groupId;
+                $officialEvent['d']['user_openid'] = $senderId;
+                break;
+                
+              // 表情事件
+              case 'MESSAGE_REACTION_ADD':
+              case 'MESSAGE_REACTION_REMOVE':
+                $officialEvent['d']['user_id'] = $senderId;
+                $officialEvent['d']['channel_id'] = $channelId;
+                $officialEvent['d']['guild_id'] = $guildId;
+                break;
+            }
           }
-          
+
           // 记录消息日志
           $logGroupId = null;
-          if ($msgType === 'group') {
+          $contentType = 'text';
+          if (in_array($eventType, ['GROUP_AT_MESSAGE_CREATE', 'GROUP_ADD_ROBOT', 'GROUP_DEL_ROBOT'])) {
             $logGroupId = $groupId;
-          } elseif ($msgType === 'channel') {
+          } elseif (in_array($eventType, ['DIRECT_MESSAGE_CREATE', 'AT_MESSAGE_CREATE', 'MESSAGE_CREATE', 'GUILD_CREATE', 'GUILD_DELETE'])) {
             $logGroupId = $channelId;
           }
-          
-          $this->db->addMessageLog(
-            'qq',
-            $bot['appid'],
-            $senderId,
-            $logGroupId,
-            $contentType,
-            $content
-          );
-          
+
+          if (in_array($eventType, ['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE', 'DIRECT_MESSAGE_CREATE', 'AT_MESSAGE_CREATE', 'MESSAGE_CREATE'])) {
+            $this->db->addMessageLog(
+              'qq',
+              $bot['appid'],
+              $senderId,
+              $logGroupId,
+              $contentType,
+              $content
+            );
+          }
+
           $data['success'] = true;
-          $data['message'] = '模拟消息推送成功';
+          $data['message'] = '模拟事件推送成功';
           $data['event'] = $officialEvent;
-          $this->db->addSystemLog('info', '模拟QQ官方格式消息推送', [
+          $this->db->addSystemLog('info', '模拟QQ官方格式事件推送', [
             'bot_id' => $botId,
             'bot_appid' => $bot['appid'],
-            'type' => $msgType,
+            'event_type' => $eventType,
             'sender' => $senderId,
             'group' => $groupId,
-            'content_type' => $contentType
+            'channel' => $channelId
           ]);
           
           // ===============================
@@ -428,16 +517,25 @@ class AdminController
               // 创建机器人实例并调用主入口
               $机器人 = new 官方QQ机器人($qqBotConfig);
               
-              // 直接调用处理方法（不需要协程，直接处理）
-              $机器人->主入口($mockRequest, $mockResponse);
-              
-              $data['processed'] = true;
-              $data['robot_response'] = $mockResponse->content;
-              $this->db->addSystemLog('info', '测试消息已成功调用机器人处理');
+              // 对于鉴权事件，直接调用鉴权方法
+              if ($eventType === 'AUTH_OP_13') {
+                $authResult = $机器人->鉴权($officialEvent);
+                $data['processed'] = true;
+                $data['auth_response'] = $authResult;
+                $data['robot_response'] = $authResult;
+                $mockResponse->end($authResult);
+                $this->db->addSystemLog('info', '测试鉴权事件已成功调用机器人处理');
+              } else {
+                // 直接调用主入口方法
+                $机器人->主入口($mockRequest, $mockResponse);
+                $data['processed'] = true;
+                $data['robot_response'] = $mockResponse->content;
+                $this->db->addSystemLog('info', '测试事件已成功调用机器人处理');
+              }
             } catch (Throwable $e) {
               $data['processed'] = false;
               $data['process_error'] = $e->getMessage();
-              $this->db->addSystemLog('warning', '测试消息调用机器人处理失败', [
+              $this->db->addSystemLog('warning', '测试事件调用机器人处理失败', [
                 'error' => $e->getMessage()
               ]);
             }
