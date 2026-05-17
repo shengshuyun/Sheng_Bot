@@ -154,23 +154,33 @@ class AdminController
         $pdo = $this->db->getConnection();
         if ($method === 'GET') {
           $data['bots'] = $pdo->query("SELECT * FROM qq_bots ORDER BY id DESC")->fetchAll();
+          $this->db->addSystemLog('info', '获取QQ机器人列表', ['count' => count($data['bots'])]);
         } elseif ($method === 'POST') {
           $stmt = $pdo->prepare("INSERT INTO qq_bots (appid, secret, sandbox) VALUES (?, ?, ?)");
+          $appid = $post['appid'] ?? '';
+          $sandbox = isset($post['sandbox']) ? (int)$post['sandbox'] : 1;
           $stmt->execute([
-            $post['appid'] ?? '',
+            $appid,
             $post['secret'] ?? '',
-            isset($post['sandbox']) ? (int)$post['sandbox'] : 1
+            $sandbox
           ]);
           $data['id'] = $pdo->lastInsertId();
           $data['message'] = 'QQ机器人添加成功';
+          $this->db->addSystemLog('info', '添加QQ机器人', ['appid' => $appid, 'id' => $data['id'], 'sandbox' => $sandbox]);
         }
       } elseif (preg_match('#^qq-bots/(\d+)$#', $endpoint, $matches)) {
         $id = (int)$matches[1];
         $pdo = $this->db->getConnection();
         if ($method === 'DELETE') {
+          // 先获取被删除的机器人信息
+          $getBot = $pdo->prepare("SELECT * FROM qq_bots WHERE id = ?");
+          $getBot->execute([$id]);
+          $botInfo = $getBot->fetch();
+          
           $stmt = $pdo->prepare("DELETE FROM qq_bots WHERE id = ?");
           $stmt->execute([$id]);
           $data['message'] = 'QQ机器人删除成功';
+          $this->db->addSystemLog('warning', '删除QQ机器人', ['id' => $id, 'appid' => $botInfo['appid'] ?? 'unknown']);
         }
       }
       
@@ -179,23 +189,33 @@ class AdminController
         $pdo = $this->db->getConnection();
         if ($method === 'GET') {
           $data['bots'] = $pdo->query("SELECT * FROM napcat_bots ORDER BY id DESC")->fetchAll();
+          $this->db->addSystemLog('info', '获取NapCat机器人列表', ['count' => count($data['bots'])]);
         } elseif ($method === 'POST') {
+          $qq = $post['qq'] ?? '';
+          $httpUrl = $post['http_url'] ?? '';
           $stmt = $pdo->prepare("INSERT INTO napcat_bots (qq, http_url, token) VALUES (?, ?, ?)");
           $stmt->execute([
-            $post['qq'] ?? '',
-            $post['http_url'] ?? '',
+            $qq,
+            $httpUrl,
             $post['token'] ?? ''
           ]);
           $data['id'] = $pdo->lastInsertId();
           $data['message'] = 'NapCat机器人添加成功';
+          $this->db->addSystemLog('info', '添加NapCat机器人', ['qq' => $qq, 'http_url' => $httpUrl, 'id' => $data['id']]);
         }
       } elseif (preg_match('#^napcat-bots/(\d+)$#', $endpoint, $matches)) {
         $id = (int)$matches[1];
         $pdo = $this->db->getConnection();
         if ($method === 'DELETE') {
+          // 先获取被删除的机器人信息
+          $getBot = $pdo->prepare("SELECT * FROM napcat_bots WHERE id = ?");
+          $getBot->execute([$id]);
+          $botInfo = $getBot->fetch();
+          
           $stmt = $pdo->prepare("DELETE FROM napcat_bots WHERE id = ?");
           $stmt->execute([$id]);
           $data['message'] = 'NapCat机器人删除成功';
+          $this->db->addSystemLog('warning', '删除NapCat机器人', ['id' => $id, 'qq' => $botInfo['qq'] ?? 'unknown']);
         }
       }
       
@@ -231,20 +251,28 @@ class AdminController
         if ($method === 'GET') {
           $data['settings'] = $this->db->getAllConfigs();
         } elseif ($method === 'POST') {
+          $changedKeys = [];
           foreach ($post as $key => $value) {
+            $oldValue = $this->db->getConfig($key);
+            if ($oldValue !== $value) {
+              $changedKeys[] = $key;
+            }
             $this->db->setConfig($key, $value);
           }
           $data['message'] = '系统设置保存成功';
+          $this->db->addSystemLog('info', '保存系统设置', ['changed_keys' => $changedKeys]);
         }
       }
       
       else {
         $response->status(404);
         $data = ['success' => false, 'error' => 'Unknown endpoint'];
+        $this->db->addSystemLog('error', '访问未知API端点', ['endpoint' => $endpoint]);
       }
     } catch (Exception $e) {
       $response->status(500);
       $data = ['success' => false, 'error' => $e->getMessage()];
+      $this->db->addSystemLog('error', 'API操作异常', ['endpoint' => $endpoint, 'error' => $e->getMessage()]);
     }
     
     $response->end(json_encode($data, JSON_UNESCAPED_UNICODE));
@@ -290,6 +318,7 @@ class AdminController
         $confirmPassword = $post['confirm_password'] ?? '';
         
         if (empty($username) || strlen($password) < 6 || $password !== $confirmPassword) {
+            $this->db->addSystemLog('warning', '安装失败：参数无效', ['username' => $username]);
             $this->redirect($response, '/admin/install');
             return;
         }
@@ -323,6 +352,8 @@ class AdminController
             $this->db->setConfig($key, $value);
         }
         
+        $this->db->addSystemLog('info', '系统安装完成', ['username' => $username]);
+        
         $sessionId = $this->getSessionId($request);
         $this->setSession($response, $sessionId, ['admin_id' => 1, 'username' => $username]);
         
@@ -355,6 +386,7 @@ class AdminController
         $password = $post['password'] ?? '';
         
         if (empty($username) || empty($password)) {
+            $this->db->addSystemLog('warning', '登录失败：参数为空', ['username' => $username]);
             $this->redirect($response, '/admin/login');
             return;
         }
@@ -365,9 +397,12 @@ class AdminController
         $admin = $stmt->fetch();
         
         if (!$admin || !password_verify($password, $admin['password_hash'])) {
+            $this->db->addSystemLog('warning', '登录失败：用户名或密码错误', ['username' => $username]);
             $this->redirect($response, '/admin/login');
             return;
         }
+        
+        $this->db->addSystemLog('info', '管理员登录成功', ['username' => $username, 'admin_id' => $admin['id']]);
         
         $sessionId = $this->getSessionId($request);
         $this->setSession($response, $sessionId, ['admin_id' => $admin['id'], 'username' => $admin['username']]);

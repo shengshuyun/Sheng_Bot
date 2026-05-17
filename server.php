@@ -44,6 +44,15 @@ Coroutine\run(function () {
         ];
     }
     
+    $db->addSystemLog('info', 'Sheng_Bot 服务器启动', [
+        'php_version' => PHP_VERSION,
+        'swoole_version' => defined('SWOOLE_VERSION') ? SWOOLE_VERSION : 'Unknown',
+        'http_port' => $config['http_port'],
+        'https_port' => $config['https_port'],
+        'qq_bots_count' => count($qqBots),
+        'napcat_bots_count' => count($napcatBots)
+    ]);
+    
     foreach ([$config['http_port'], $config['https_port']] as $port) {
         $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
         if ($fp) {
