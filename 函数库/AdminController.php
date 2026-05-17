@@ -118,6 +118,8 @@ class AdminController
             $this->saveSettings($request, $response);
         } elseif ($uri === '/admin/settings/password') {
             $this->savePassword($request, $response);
+        } elseif ($uri === '/admin/settings/save-advanced') {
+            $this->saveAdvancedSettings($request, $response);
         } else {
             $response->status(404);
             $response->end($this->html('<div class="container mt-5"><h1>404 - 页面不存在</h1></div>'));
@@ -386,14 +388,72 @@ class AdminController
     
     private function messageLogsPage($request, $response)
     {
-        $content = $this->sidebar('logs') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">消息日志</h1></div><div class="card mb-4"><div class="card-body"><div class="card"><div class="card-body">消息日志功能开发中...</div></div></div></div></main></div></div>';
+        $get = $request->get ?? [];
+        $botType = $get['bot_type'] ?? '';
+        $logs = $this->db->getMessageLogs(200, $botType);
+        
+        $logsHtml = '';
+        if (!empty($logs)) {
+            foreach ($logs as $log) {
+                $botTypeLabel = htmlspecialchars($log['bot_type']);
+                $botId = htmlspecialchars($log['bot_id']);
+                $userId = htmlspecialchars($log['user_id'] ?? '-');
+                $groupId = htmlspecialchars($log['group_id'] ?? '-');
+                $msgType = htmlspecialchars($log['message_type'] ?? '-');
+                $content = htmlspecialchars($log['content'] ?? '-');
+                $createdAt = htmlspecialchars($log['created_at']);
+                $contentShort = substr($content, 0, 50);
+                if (strlen($content) > 50) $contentShort .= '...';
+                $logsHtml .= '<tr><td>' . $botTypeLabel . '</td><td>' . $botId . '</td><td>' . $userId . '</td><td>' . $groupId . '</td><td>' . $msgType . '</td><td>' . $contentShort . '</td><td>' . $createdAt . '</td></tr>';
+            }
+        } else {
+            $logsHtml = '<tr><td colspan="7" class="text-center text-muted py-4">暂无消息日志</td></tr>';
+        }
+        
+        $qqSelected = $botType === 'qq' ? 'selected' : '';
+        $napcatSelected = $botType === 'napcat' ? 'selected' : '';
+        
+        $content = $this->sidebar('logs') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">消息日志</h1><div class="btn-toolbar mb-2 mb-md-0"><form method="GET" action="/admin/logs" class="d-flex"><select name="bot_type" class="form-select me-2" style="width:200px;"><option value="">全部机器人</option><option value="qq" ' . $qqSelected . '>QQ官方机器人</option><option value="napcat" ' . $napcatSelected . '>NapCat机器人</option></select><button type="submit" class="btn btn-primary">筛选</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">消息记录</h5></div><div class="card-body p-0"><div class="table-responsive" style="max-height:600px;overflow-y:auto;"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>机器人类型</th><th>机器人ID</th><th>用户ID</th><th>群组ID</th><th>消息类型</th><th>内容</th><th>时间</th></tr></thead><tbody>' . $logsHtml . '</tbody></table></div></div></div></main></div></div>';
         
         $response->end($this->html($content, '消息日志 - Sheng_Bot'));
     }
     
     private function systemLogsPage($request, $response)
     {
-        $content = $this->sidebar('system') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统日志</h1></div><div class="card mb-4"><div class="card-body"><div class="card"><div class="card-body">系统日志功能开发中...</div></div></div></div></main></div></div>';
+        $get = $request->get ?? [];
+        $level = $get['level'] ?? '';
+        $logs = $this->db->getSystemLogs(200, $level);
+        
+        $levelColors = [
+            'debug' => 'secondary',
+            'info' => 'info',
+            'warning' => 'warning',
+            'error' => 'danger',
+            'critical' => 'dark'
+        ];
+        
+        $logsHtml = '';
+        if (!empty($logs)) {
+            foreach ($logs as $log) {
+                $levelClass = $levelColors[$log['level']] ?? 'secondary';
+                $levelLabel = '<span class="badge bg-' . $levelClass . '">' . strtoupper(htmlspecialchars($log['level'])) . '</span>';
+                $message = htmlspecialchars($log['message']);
+                $context = $log['context'] ? htmlspecialchars($log['context']) : '-';
+                $createdAt = htmlspecialchars($log['created_at']);
+                $contextHtml = $context !== '-' ? '<code class="small">' . $context . '</code>' : '-';
+                $logsHtml .= '<tr><td>' . $levelLabel . '</td><td>' . $message . '</td><td>' . $contextHtml . '</td><td>' . $createdAt . '</td></tr>';
+            }
+        } else {
+            $logsHtml = '<tr><td colspan="4" class="text-center text-muted py-4">暂无系统日志</td></tr>';
+        }
+        
+        $debugSelected = $level === 'debug' ? 'selected' : '';
+        $infoSelected = $level === 'info' ? 'selected' : '';
+        $warningSelected = $level === 'warning' ? 'selected' : '';
+        $errorSelected = $level === 'error' ? 'selected' : '';
+        $criticalSelected = $level === 'critical' ? 'selected' : '';
+        
+        $content = $this->sidebar('system') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统日志</h1><div class="btn-toolbar mb-2 mb-md-0"><form method="GET" action="/admin/system/logs" class="d-flex"><select name="level" class="form-select me-2" style="width:200px;"><option value="">全部级别</option><option value="debug" ' . $debugSelected . '>DEBUG</option><option value="info" ' . $infoSelected . '>INFO</option><option value="warning" ' . $warningSelected . '>WARNING</option><option value="error" ' . $errorSelected . '>ERROR</option><option value="critical" ' . $criticalSelected . '>CRITICAL</option></select><button type="submit" class="btn btn-primary">筛选</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">系统日志</h5></div><div class="card-body p-0"><div class="table-responsive" style="max-height:600px;overflow-y:auto;"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>级别</th><th>消息</th><th>上下文</th><th>时间</th></tr></thead><tbody>' . $logsHtml . '</tbody></table></div></div></div></main></div></div>';
         
         $response->end($this->html($content, '系统日志 - Sheng_Bot'));
     }
@@ -405,7 +465,25 @@ class AdminController
         $httpPort = $this->db->getConfig('http_port', 9501);
         $httpsPort = $this->db->getConfig('https_port', 9502);
         
-        $content = $this->sidebar('settings') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统设置</h1></div><div class="row"><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">基本设置</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save"><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="' . $siteName . '"></div><div class="mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="' . $domain . '"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="' . $httpPort . '"></div><div class="col-md-6 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="' . $httpsPort . '"></div></div><button type="submit" class="btn btn-primary">保存设置</button></form></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">修改密码</h5></div><div class="card-body"><form method="POST" action="/admin/settings/password"><div class="mb-3"><label class="form-label">原密码</label><input type="password" name="old_password" class="form-control" required></div><div class="mb-3"><label class="form-label">新密码</label><input type="password" name="new_password" class="form-control" required></div><div class="mb-3"><label class="form-label">确认新密码</label><input type="password" name="confirm_password" class="form-control" required></div><button type="submit" class="btn btn-success">修改密码</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
+        $dbPoolMaxSize = $this->db->getConfig('db_pool_max_size', 10);
+        $dbPoolMinSize = $this->db->getConfig('db_pool_min_size', 2);
+        $dbPoolTimeout = $this->db->getConfig('db_pool_timeout', 5);
+        $queryCacheEnabled = $this->db->getConfig('query_cache_enabled', true) ? 'checked' : '';
+        $queryCacheTtl = $this->db->getConfig('query_cache_ttl', 300);
+        $queryCacheMaxSize = $this->db->getConfig('query_cache_max_size', 1000);
+        $logLevel = htmlspecialchars($this->db->getConfig('log_level', 'info'));
+        $logMaxFileSize = $this->db->getConfig('log_max_file_size', 10 * 1024 * 1024);
+        $logMaxFiles = $this->db->getConfig('log_max_files', 10);
+        $logToDatabase = $this->db->getConfig('log_to_database', true) ? 'checked' : '';
+        $logToFile = $this->db->getConfig('log_to_file', true) ? 'checked' : '';
+        
+        $debugSel = $logLevel === 'debug' ? 'selected' : '';
+        $infoSel = $logLevel === 'info' ? 'selected' : '';
+        $warningSel = $logLevel === 'warning' ? 'selected' : '';
+        $errorSel = $logLevel === 'error' ? 'selected' : '';
+        $criticalSel = $logLevel === 'critical' ? 'selected' : '';
+        
+        $content = $this->sidebar('settings') . '<main class="col-md-9 ms-sm-auto col-lg-10 px-md-4"><div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"><h1 class="h2">系统设置</h1></div><div class="row"><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">基本设置</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save"><div class="mb-3"><label class="form-label">站点名称</label><input type="text" name="site_name" class="form-control" value="' . $siteName . '"></div><div class="mb-3"><label class="form-label">监听地址</label><input type="text" name="domain" class="form-control" value="' . $domain . '"></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">HTTP端口</label><input type="number" name="http_port" class="form-control" value="' . $httpPort . '"></div><div class="col-md-6 mb-3"><label class="form-label">HTTPS端口</label><input type="number" name="https_port" class="form-control" value="' . $httpsPort . '"></div></div><button type="submit" class="btn btn-primary">保存设置</button></form></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">修改密码</h5></div><div class="card-body"><form method="POST" action="/admin/settings/password"><div class="mb-3"><label class="form-label">原密码</label><input type="password" name="old_password" class="form-control" required></div><div class="mb-3"><label class="form-label">新密码</label><input type="password" name="new_password" class="form-control" required></div><div class="mb-3"><label class="form-label">确认新密码</label><input type="password" name="confirm_password" class="form-control" required></div><button type="submit" class="btn btn-success">修改密码</button></form></div></div></div><div class="col-md-6"><div class="card mb-4"><div class="card-header"><h5 class="mb-0">数据库连接池</h5></div><div class="card-body"><form method="POST" action="/admin/settings/save-advanced"><div class="row"><div class="col-md-4 mb-3"><label class="form-label">最大连接数</label><input type="number" name="db_pool_max_size" class="form-control" value="' . $dbPoolMaxSize . '"></div><div class="col-md-4 mb-3"><label class="form-label">最小连接数</label><input type="number" name="db_pool_min_size" class="form-control" value="' . $dbPoolMinSize . '"></div><div class="col-md-4 mb-3"><label class="form-label">超时时间(秒)</label><input type="number" name="db_pool_timeout" class="form-control" value="' . $dbPoolTimeout . '"></div></div></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">查询缓存</h5></div><div class="card-body"><div class="form-check mb-3"><input type="checkbox" name="query_cache_enabled" class="form-check-input" id="cacheEnabled" ' . $queryCacheEnabled . '><label class="form-check-label" for="cacheEnabled">启用查询缓存</label></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">缓存TTL(秒)</label><input type="number" name="query_cache_ttl" class="form-control" value="' . $queryCacheTtl . '"></div><div class="col-md-6 mb-3"><label class="form-label">最大缓存数</label><input type="number" name="query_cache_max_size" class="form-control" value="' . $queryCacheMaxSize . '"></div></div></div></div><div class="card mb-4"><div class="card-header"><h5 class="mb-0">日志系统</h5></div><div class="card-body"><div class="mb-3"><label class="form-label">日志级别</label><select name="log_level" class="form-select"><option value="debug" ' . $debugSel . '>DEBUG</option><option value="info" ' . $infoSel . '>INFO</option><option value="warning" ' . $warningSel . '>WARNING</option><option value="error" ' . $errorSel . '>ERROR</option><option value="critical" ' . $criticalSel . '>CRITICAL</option></select></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label">单个日志文件最大(MB)</label><input type="number" name="log_max_file_size_mb" class="form-control" value="' . intval($logMaxFileSize / 1024 / 1024) . '"></div><div class="col-md-6 mb-3"><label class="form-label">保留日志文件数</label><input type="number" name="log_max_files" class="form-control" value="' . $logMaxFiles . '"></div></div><div class="form-check mb-2"><input type="checkbox" name="log_to_database" class="form-check-input" id="logToDb" ' . $logToDatabase . '><label class="form-check-label" for="logToDb">保存到数据库</label></div><div class="form-check mb-3"><input type="checkbox" name="log_to_file" class="form-check-input" id="logToFile" ' . $logToFile . '><label class="form-check-label" for="logToFile">保存到文件</label></div><button type="submit" class="btn btn-primary">保存高级设置</button></form></div></div><div class="card"><div class="card-header"><h5 class="mb-0">系统信息</h5></div><div class="card-body"><p>PHP版本: ' . PHP_VERSION . '</p><p>Swoole版本: ' . SWOOLE_VERSION . '</p><p>服务器时间: ' . date('Y-m-d H:i:s') . '</p></div></div></div></div></main></div></div>';
         
         $response->end($this->html($content, '系统设置 - Sheng_Bot'));
     }
@@ -417,6 +495,25 @@ class AdminController
         $this->db->setConfig('domain', trim($post['domain'] ?? ''));
         $this->db->setConfig('http_port', intval($post['http_port'] ?? 9501));
         $this->db->setConfig('https_port', intval($post['https_port'] ?? 9502));
+        $this->redirect($response, '/admin/settings');
+    }
+    
+    private function saveAdvancedSettings($request, $response)
+    {
+        $post = $request->post ?? [];
+        
+        $this->db->setConfig('db_pool_max_size', intval($post['db_pool_max_size'] ?? 10));
+        $this->db->setConfig('db_pool_min_size', intval($post['db_pool_min_size'] ?? 2));
+        $this->db->setConfig('db_pool_timeout', intval($post['db_pool_timeout'] ?? 5));
+        $this->db->setConfig('query_cache_enabled', isset($post['query_cache_enabled']) ? true : false);
+        $this->db->setConfig('query_cache_ttl', intval($post['query_cache_ttl'] ?? 300));
+        $this->db->setConfig('query_cache_max_size', intval($post['query_cache_max_size'] ?? 1000));
+        $this->db->setConfig('log_level', $post['log_level'] ?? 'info');
+        $this->db->setConfig('log_max_file_size', intval($post['log_max_file_size_mb'] ?? 10) * 1024 * 1024);
+        $this->db->setConfig('log_max_files', intval($post['log_max_files'] ?? 10));
+        $this->db->setConfig('log_to_database', isset($post['log_to_database']) ? true : false);
+        $this->db->setConfig('log_to_file', isset($post['log_to_file']) ? true : false);
+        
         $this->redirect($response, '/admin/settings');
     }
     

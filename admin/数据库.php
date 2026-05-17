@@ -224,4 +224,48 @@ class SQLiteDatabase
     {
         $this->setConfig('installed', false);
     }
+    
+    public function getMessageLogs(int $limit = 100, string $botType = null): array
+    {
+        $pdo = $this->getConnection();
+        
+        if ($botType) {
+            $stmt = $pdo->prepare("SELECT * FROM message_logs WHERE bot_type = ? ORDER BY id DESC LIMIT ?");
+            $stmt->execute([$botType, $limit]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM message_logs ORDER BY id DESC LIMIT ?");
+            $stmt->execute([$limit]);
+        }
+        
+        return $stmt->fetchAll();
+    }
+    
+    public function getSystemLogs(int $limit = 100, string $level = null): array
+    {
+        $pdo = $this->getConnection();
+        
+        if ($level) {
+            $stmt = $pdo->prepare("SELECT * FROM system_logs WHERE level = ? ORDER BY id DESC LIMIT ?");
+            $stmt->execute([$level, $limit]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM system_logs ORDER BY id DESC LIMIT ?");
+            $stmt->execute([$limit]);
+        }
+        
+        return $stmt->fetchAll();
+    }
+    
+    public function addMessageLog(string $botType, string $botId, string $userId = null, string $groupId = null, string $messageType = null, string $content = null): bool
+    {
+        $pdo = $this->getConnection();
+        $stmt = $pdo->prepare("INSERT INTO message_logs (bot_type, bot_id, user_id, group_id, message_type, content) VALUES (?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([$botType, $botId, $userId, $groupId, $messageType, $content]);
+    }
+    
+    public function addSystemLog(string $level, string $message, array $context = []): bool
+    {
+        $pdo = $this->getConnection();
+        $stmt = $pdo->prepare("INSERT INTO system_logs (level, message, context) VALUES (?, ?, ?)");
+        return $stmt->execute([$level, $message, !empty($context) ? json_encode($context, JSON_UNESCAPED_UNICODE) : null]);
+    }
 }
