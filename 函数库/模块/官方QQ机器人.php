@@ -1,5 +1,6 @@
 <?php
-require_once __DIR__ . '/ini数据库.php';
+require_once __DIR__ . '/sqlite_db.php';
+require_once __DIR__ . '/../../admin/数据库.php';
 
 use Swoole\Coroutine as Co;
 use function Swoole\Coroutine\go;
@@ -51,6 +52,28 @@ class 官方QQ机器人 {
         
         // 直接调用数据库实例的 __invoke 方法
         return ($this->数据库实例)($操作, $路径, $数据);
+    }
+
+    private function 记录日志($消息类型, $内容, $用户ID = null, $群ID = null)
+    {
+        try {
+            $db = new SQLiteDatabase();
+            $pdo = $db->getConnection();
+            $stmt = $pdo->prepare("
+                INSERT INTO message_logs (bot_type, bot_id, user_id, group_id, message_type, content, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ");
+            $stmt->execute([
+                'qq',
+                $this->当前账号['appid'] ?? '',
+                $用户ID,
+                $群ID,
+                $消息类型,
+                is_array($内容) ? json_encode($内容, JSON_UNESCAPED_UNICODE) : $内容
+            ]);
+        } catch (Throwable $e) {
+            // 忽略日志记录错误
+        }
     }
 
     public function 主入口($请求, $响应)
