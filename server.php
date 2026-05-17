@@ -63,6 +63,7 @@ Coroutine\run(function () {
     
     $处理程序 = require_once __DIR__ . '/函数库/请求处理.php';
     $adminController = new AdminController();
+    $adminController->setFrameworkConfig($config['framework']);
     
     $回调 = function ($request, $response) use ($处理程序, $config, $adminController) {
         try {

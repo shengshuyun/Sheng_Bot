@@ -1,15 +1,22 @@
 <?php
 require_once __DIR__ . '/../admin/数据库.php';
+require_once __DIR__ . '/模块/官方QQ机器人.php';
 
 class AdminController
 {
     private $db;
     private $sessions = [];
     private $sessionIdKey = 'ShengBotSession';
+    private $frameworkConfig = [];
     
     public function __construct()
     {
         $this->db = new SQLiteDatabase();
+    }
+    
+    public function setFrameworkConfig(array $config)
+    {
+        $this->frameworkConfig = $config;
     }
     
     private function getSessionId($request)
@@ -371,6 +378,73 @@ class AdminController
             'group' => $groupId,
             'content_type' => $contentType
           ]);
+          
+          // ===============================
+          // 关键：真正调用机器人处理消息！
+          // ===============================
+          
+          // 检查是否有配置的QQ机器人
+          if (isset($this->frameworkConfig['QQBOT']) && !empty($this->frameworkConfig['QQBOT'])) {
+            $qqBotConfig = $this->frameworkConfig['QQBOT'];
+            
+            // 创建一个临时请求对象，让机器人来处理
+            $mockRequest = new class($bot['appid'], $officialEvent) {
+              public $header = [];
+              private $rawContent;
+              
+              public function __construct($appId, $event) {
+                $this->header['x-bot-appid'] = $appId;
+                $this->rawContent = json_encode($event, JSON_UNESCAPED_UNICODE);
+              }
+              
+              public function rawContent() {
+                return $this->rawContent;
+              }
+              
+              public function getMethod() {
+                return 'POST';
+              }
+            };
+            
+            $mockResponse = new class {
+              public $headers = [];
+              public $statusCode = 200;
+              public $content = '';
+              
+              public function status($code) {
+                $this->statusCode = $code;
+              }
+              
+              public function header($key, $value) {
+                $this->headers[$key] = $value;
+              }
+              
+              public function end($content) {
+                $this->content = $content;
+              }
+            };
+            
+            try {
+              // 创建机器人实例并调用主入口
+              $机器人 = new 官方QQ机器人($qqBotConfig);
+              
+              // 直接调用处理方法（不需要协程，直接处理）
+              $机器人->主入口($mockRequest, $mockResponse);
+              
+              $data['processed'] = true;
+              $data['robot_response'] = $mockResponse->content;
+              $this->db->addSystemLog('info', '测试消息已成功调用机器人处理');
+            } catch (Throwable $e) {
+              $data['processed'] = false;
+              $data['process_error'] = $e->getMessage();
+              $this->db->addSystemLog('warning', '测试消息调用机器人处理失败', [
+                'error' => $e->getMessage()
+              ]);
+            }
+          } else {
+            $data['processed'] = false;
+            $data['process_note'] = '没有配置QQ机器人';
+          }
         }
       }
       

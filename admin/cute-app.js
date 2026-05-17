@@ -346,6 +346,20 @@ class ShengBotApp {
           this.addTestLog(`📥 官方格式: `, 'info');
           this.addTestLog(JSON.stringify(result.event, null, 2));
         }
+        
+        if (result.processed !== undefined) {
+          if (result.processed) {
+            this.addTestLog(`🤖 机器人已处理！`, 'success');
+            if (result.robot_response) {
+              this.addTestLog(`📤 机器人返回: ${result.robot_response}`, 'info');
+            }
+          } else {
+            this.addTestLog(`⚠️ 机器人处理: ${result.process_note || '未处理'}`, 'warning');
+            if (result.process_error) {
+              this.addTestLog(`❌ 错误: ${result.process_error}`, 'error');
+            }
+          }
+        }
       } else {
         this.showToast('error', '发送失败', result.error || '未知错误');
         this.addTestLog(`❌ 消息推送失败: ${result.error}`, 'error');
