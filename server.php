@@ -5,7 +5,7 @@ use Swoole\Coroutine\Http\Server;
 use Swoole\Coroutine;
 use Swoole\Runtime;
 
-require_once __DIR__ . '/函数库/运行环境检测.php';
+// require_once __DIR__ . '/函数库/运行环境检测.php';
 require_once __DIR__ . '/函数库/AdminController.php';
 require_once __DIR__ . '/admin/数据库.php';
 
