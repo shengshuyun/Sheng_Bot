@@ -345,12 +345,12 @@ class AdminController
     
     private function installPage($request, $response)
     {
-        $content = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>安装</title>';
-        $content .= '<style>body{font-family:system-ui;background:#FFF0F5;padding:40px;text-align:center}';
-        $content .= '.card{background:white;padding:40px;border-radius:20px;max-width:500px;margin:0 auto;box-shadow:0 10px 40px rgba(255,107,157,0.2)}';
-        $content .= 'h1{color:#FF6B9D}';
-        $content .= 'input{padding:12px;margin:8px;border:2px solid #FFB6C1;border-radius:10px;width:100%;box-sizing:border-box}';
-        $content .= 'button{background:linear-gradient(135deg,#FF9EB1,#FF6B9D);color:white;border:none;padding:14px 30px;border-radius:25px;font-size:18px;cursor:pointer;margin-top:20px}';
+        $content = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>安装</title>';
+        $content .= '<style>body{font-family:system-ui;background:#FFF0F5;padding:20px;text-align:center;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}';
+        $content .= '.card{background:white;padding:30px;border-radius:20px;width:100%;max-width:500px;margin:0 auto;box-shadow:0 10px 40px rgba(255,107,157,0.2);box-sizing:border-box}';
+        $content .= 'h1{color:#FF6B9D;margin:0 0 20px 0;font-size:24px}';
+        $content .= 'input{padding:14px;margin:8px 0;border:2px solid #FFB6C1;border-radius:10px;width:100%;box-sizing:border-box;font-size:16px}';
+        $content .= 'button{background:linear-gradient(135deg,#FF9EB1,#FF6B9D);color:white;border:none;padding:14px 30px;border-radius:25px;font-size:18px;cursor:pointer;margin-top:20px;width:100%}';
         $content .= '</style></head><body><div class="card"><h1>🌸 Sheng_Bot 安装向导</h1>';
         $content .= '<form method="POST" action="/admin/install/do">';
         $content .= '<input type="text" name="username" required placeholder="管理员用户名"><br>';
@@ -420,12 +420,12 @@ class AdminController
     
     private function loginPage($request, $response)
     {
-        $content = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>登录</title>';
-        $content .= '<style>body{font-family:system-ui;background:#FFF0F5;padding:40px;text-align:center}';
-        $content .= '.card{background:white;padding:40px;border-radius:20px;max-width:400px;margin:0 auto;box-shadow:0 10px 40px rgba(255,107,157,0.2)}';
-        $content .= 'h1{color:#FF6B9D}';
-        $content .= 'input{padding:12px;margin:8px;border:2px solid #FFB6C1;border-radius:10px;width:100%;box-sizing:border-box}';
-        $content .= 'button{background:linear-gradient(135deg,#FF9EB1,#FF6B9D);color:white;border:none;padding:14px 30px;border-radius:25px;font-size:18px;cursor:pointer;margin-top:20px}';
+        $content = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录</title>';
+        $content .= '<style>body{font-family:system-ui;background:#FFF0F5;padding:20px;text-align:center;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}';
+        $content .= '.card{background:white;padding:30px;border-radius:20px;width:100%;max-width:400px;margin:0 auto;box-shadow:0 10px 40px rgba(255,107,157,0.2);box-sizing:border-box}';
+        $content .= 'h1{color:#FF6B9D;margin:0 0 20px 0;font-size:24px}';
+        $content .= 'input{padding:14px;margin:8px 0;border:2px solid #FFB6C1;border-radius:10px;width:100%;box-sizing:border-box;font-size:16px}';
+        $content .= 'button{background:linear-gradient(135deg,#FF9EB1,#FF6B9D);color:white;border:none;padding:14px 30px;border-radius:25px;font-size:18px;cursor:pointer;margin-top:20px;width:100%}';
         $content .= '</style></head><body><div class="card"><h1>🌸 Sheng_Bot 登录</h1>';
         $content .= '<form method="POST" action="/admin/login/do">';
         $content .= '<input type="text" name="username" required placeholder="用户名"><br>';
