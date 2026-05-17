@@ -58,7 +58,7 @@ class ShengBotApp {
       const response = await fetch(`/admin/api/${endpoint}`, fetchOptions);
       return await response.json();
     } catch (error) {
-      this.showToast('error', '请求失败', error.message);
+      // 移除了烦人的Toast提示
       throw error;
     }
   }
@@ -171,7 +171,7 @@ class ShengBotApp {
     await this.loadPageData(this.currentPage);
     this.updatePageContent(this.currentPage);
     this.showLoading(false);
-    this.showToast('success', '刷新成功', '数据已更新');
+    // 移除了烦人的Toast提示
   }
 
   updatePageContent(page) {
@@ -598,11 +598,9 @@ class ShengBotApp {
         });
         
         if (result.success !== false) {
-          this.showToast('success', '添加成功', result.message || 'QQ机器人添加成功');
           await this.refreshCurrentPage();
-        } else {
-          this.showToast('error', '添加失败', result.error || '未知错误');
         }
+        // 移除了烦人的Toast提示
       } else if (formType === 'napcat-bot') {
         const result = await this.fetchApi('napcat-bots', {
           method: 'POST',
@@ -610,11 +608,9 @@ class ShengBotApp {
         });
         
         if (result.success !== false) {
-          this.showToast('success', '添加成功', result.message || 'NapCat机器人添加成功');
           await this.refreshCurrentPage();
-        } else {
-          this.showToast('error', '添加失败', result.error || '未知错误');
         }
+        // 移除了烦人的Toast提示
       } else if (formType === 'settings') {
         const data = {};
         formData.forEach((value, key) => {
@@ -624,19 +620,14 @@ class ShengBotApp {
           else data[key] = value;
         });
         
-        const result = await this.fetchApi('settings', {
+        await this.fetchApi('settings', {
           method: 'POST',
           body: Object.keys(data).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).join('&')
         });
-        
-        if (result.success !== false) {
-          this.showToast('success', '保存成功', result.message || '系统设置已保存');
-        } else {
-          this.showToast('error', '保存失败', result.error || '未知错误');
-        }
+        // 移除了烦人的Toast提示
       }
     } catch (error) {
-      this.showToast('error', '操作失败', error.message);
+      // 移除了烦人的Toast提示
     }
   }
 
@@ -655,18 +646,16 @@ class ShengBotApp {
       });
       
       if (result.success !== false) {
-        this.showToast('success', '删除成功', result.message || '已删除');
         await this.refreshCurrentPage();
-      } else {
-        this.showToast('error', '删除失败', result.error || '未知错误');
       }
+      // 移除了烦人的Toast提示
     } catch (error) {
-      this.showToast('error', '删除失败', error.message);
+      // 移除了烦人的Toast提示
     }
   }
 
   handleCopy(btn) {
-    this.showToast('success', '复制成功', '内容已复制到剪贴板');
+    // 移除了烦人的Toast提示
   }
 
   // ================== ✨ Effects ==================
@@ -731,7 +720,7 @@ class ShengBotApp {
     for (let i = 0; i < 30; i++) {
       setTimeout(() => this.createSingleSparkle(), i * 50);
     }
-    this.showToast('success', '好萌!', '✨ 樱吹雪 ✨');
+    // 移除了烦人的Toast提示
   }
 
   createSingleSparkle() {
