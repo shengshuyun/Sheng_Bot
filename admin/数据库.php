@@ -5,13 +5,13 @@ class SQLiteDatabase
 {
     private static ?PDO $instance = null;
     private string $dbPath;
-
-    public function __construct(string $dbPath = __DIR__ . '/../数据/sheng_bot.db')
+    
+    public function __construct(string $dbPath = null)
     {
-        $this->dbPath = $dbPath;
+        $this->dbPath = $dbPath ?? __DIR__ . '/../数据/sheng_bot.db';
         $this->initDatabase();
     }
-
+    
     public static function getInstance(): PDO
     {
         if (self::$instance === null) {
@@ -19,7 +19,7 @@ class SQLiteDatabase
         }
         return self::$instance->getConnection();
     }
-
+    
     private function initDatabase(): void
     {
         $dbDir = dirname($this->dbPath);
@@ -28,11 +28,9 @@ class SQLiteDatabase
         }
 
         $pdo = $this->getConnection();
-        
-        // 创建表结构
         $this->createTables($pdo);
     }
-
+    
     public function getConnection(): PDO
     {
         if (self::$instance === null) {
@@ -62,6 +60,7 @@ class SQLiteDatabase
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_config_key ON config(config_key)");
 
         // 管理员表
         $pdo->exec("
@@ -72,6 +71,7 @@ class SQLiteDatabase
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)");
 
         // QQ机器人表
         $pdo->exec("
@@ -83,6 +83,7 @@ class SQLiteDatabase
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_qq_bots_appid ON qq_bots(appid)");
 
         // NapCat机器人表
         $pdo->exec("
@@ -94,6 +95,7 @@ class SQLiteDatabase
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_napcat_qq ON napcat_bots(qq)");
 
         // 消息日志表
         $pdo->exec("
@@ -108,8 +110,11 @@ class SQLiteDatabase
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_msg_bot_type ON message_logs(bot_type)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_msg_created ON message_logs(created_at)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_msg_bot_id ON message_logs(bot_id)");
 
-        // KV存储表（替代ini数据库的存储）
+        // KV存储表
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS kv_store (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,18 +124,32 @@ class SQLiteDatabase
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
-    }
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_kv_key ON kv_store(store_key)");
 
+        // 系统日志表
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS system_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level TEXT NOT NULL,
+                message TEXT NOT NULL,
+                context TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sys_log_level ON system_logs(level)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sys_log_created ON system_logs(created_at)");
+    }
+    
     public function setConfig(string $key, mixed $value): bool
     {
         $pdo = $this->getConnection();
         $stmt = $pdo->prepare("
             INSERT OR REPLACE INTO config (config_key, config_value, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, datetime('now'))
         ");
         return $stmt->execute([$key, json_encode($value)]);
     }
-
+    
     public function getConfig(string $key, mixed $default = null): mixed
     {
         $pdo = $this->getConnection();
@@ -139,7 +158,7 @@ class SQLiteDatabase
         $row = $stmt->fetch();
         return $row ? json_decode($row['config_value'], true) : $default;
     }
-
+    
     public function getAllConfigs(): array
     {
         $pdo = $this->getConnection();
@@ -150,17 +169,17 @@ class SQLiteDatabase
         }
         return $result;
     }
-
+    
     public function setKV(string $key, mixed $value): bool
     {
         $pdo = $this->getConnection();
         $stmt = $pdo->prepare("
             INSERT OR REPLACE INTO kv_store (store_key, store_value, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, datetime('now'))
         ");
         return $stmt->execute([$key, json_encode($value)]);
     }
-
+    
     public function getKV(string $key, mixed $default = null): mixed
     {
         $pdo = $this->getConnection();
@@ -169,14 +188,14 @@ class SQLiteDatabase
         $row = $stmt->fetch();
         return $row ? json_decode($row['store_value'], true) : $default;
     }
-
+    
     public function deleteKV(string $key): bool
     {
         $pdo = $this->getConnection();
         $stmt = $pdo->prepare("DELETE FROM kv_store WHERE store_key = ?");
         return $stmt->execute([$key]);
     }
-
+    
     public function isInstalled(): bool
     {
         $pdo = $this->getConnection();
