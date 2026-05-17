@@ -184,10 +184,134 @@ class ShengBotApp {
       napcatBots: this.getNapcatBotsHTML(),
       logs: this.getLogsHTML(),
       system: this.getSystemHTML(),
-      settings: this.getSettingsHTML()
+      settings: this.getSettingsHTML(),
+      test: this.getTestHTML()
     };
 
     mainContent.innerHTML = pages[page] || pages.dashboard;
+    
+    if (page === 'test') {
+      this.loadTestPageData();
+      this.bindTestEvents();
+    }
+  }
+
+  // ================== 🧪 测试页功能 ==================
+  async loadTestPageData() {
+    await this.loadQQBots();
+    this.updateBotSelect();
+  }
+
+  async loadQQBots() {
+    try {
+      const data = await this.fetchApi('qq-bots');
+      this.qqBots = data.bots || [];
+    } catch (e) {
+      console.error('加载QQ机器人失败:', e);
+    }
+  }
+
+  updateBotSelect() {
+    const select = document.getElementById('test-bot-select');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- 选择一个QQ机器人 --</option>';
+    this.qqBots.forEach(bot => {
+      const opt = document.createElement('option');
+      opt.value = bot.id;
+      opt.textContent = `${bot.appid} (${bot.sandbox ? '沙箱' : '正式'})`;
+      select.appendChild(opt);
+    });
+  }
+
+  addTestLog(msg, type = 'info') {
+    const logDiv = document.getElementById('test-log');
+    if (!logDiv) return;
+    
+    const entry = document.createElement('div');
+    const colors = {
+      info: '#4CAF50',
+      success: '#4CAF50',
+      error: '#FF6B6B',
+      warning: '#FFD700'
+    };
+    const time = new Date().toLocaleTimeString();
+    entry.style.cssText = `padding: 6px 8px; border-bottom: 1px solid #eee; color: ${colors[type] || '#333'};`;
+    entry.textContent = `[${time}] ${msg}`;
+    
+    const placeholder = logDiv.querySelector('div[style*="color: #888"]');
+    if (placeholder) placeholder.remove();
+    
+    logDiv.insertBefore(entry, logDiv.firstChild);
+  }
+
+  bindTestEvents() {
+    const sendBtn = document.getElementById('test-send-btn');
+    const refreshBtn = document.getElementById('test-refresh-bots-btn');
+    
+    if (sendBtn) {
+      sendBtn.onclick = () => this.sendTestMessage();
+    }
+    
+    if (refreshBtn) {
+      refreshBtn.onclick = async () => {
+        await this.loadQQBots();
+        this.updateBotSelect();
+        this.showToast('success', '刷新成功', '机器人列表已更新');
+      };
+    }
+  }
+
+  async sendTestMessage() {
+    const botId = document.getElementById('test-bot-select')?.value;
+    const type = document.getElementById('test-type-select')?.value;
+    const senderId = document.getElementById('test-sender-id')?.value;
+    const groupId = document.getElementById('test-group-id')?.value;
+    const content = document.getElementById('test-content')?.value;
+    const contentType = document.getElementById('test-content-type')?.value;
+
+    if (!botId) {
+      this.showToast('error', '错误', '请选择一个机器人');
+      this.addTestLog('❌ 发送失败: 未选择机器人', 'error');
+      return;
+    }
+
+    if (type === 'group' && !groupId) {
+      this.showToast('error', '错误', '群聊消息必须填写群号');
+      this.addTestLog('❌ 发送失败: 群聊未填写群号', 'error');
+      return;
+    }
+
+    if (!content) {
+      this.showToast('error', '错误', '请填写消息内容');
+      this.addTestLog('❌ 发送失败: 消息内容为空', 'error');
+      return;
+    }
+
+    try {
+      this.addTestLog(`📤 正在发送${type === 'group' ? '群聊' : '私聊'}消息...`, 'info');
+      const result = await this.fetchApi('test/send-message', {
+        method: 'POST',
+        body: new URLSearchParams({
+          bot_id: botId,
+          type: type,
+          sender_id: senderId,
+          group_id: groupId,
+          content: content,
+          content_type: contentType
+        })
+      });
+
+      if (result.success) {
+        this.showToast('success', '发送成功', '测试消息已推送');
+        this.addTestLog(`✅ 消息推送成功: ${contentType}`, 'success');
+      } else {
+        this.showToast('error', '发送失败', result.error || '未知错误');
+        this.addTestLog(`❌ 消息推送失败: ${result.error}`, 'error');
+      }
+    } catch (e) {
+      this.showToast('error', '发送失败', e.message);
+      this.addTestLog(`❌ 异常: ${e.message}`, 'error');
+    }
   }
 
   // ================== 📄 Page Templates ==================
@@ -225,11 +349,11 @@ class ShengBotApp {
           <a href="javascript:void(0)" class="cute-btn cute-btn-success cute-nav-link" data-page="napcatBots">
             🔧 管理 NapCat 机器人
           </a>
+          <a href="javascript:void(0)" class="cute-btn cute-btn-info cute-nav-link" data-page="test">
+            🧪 消息测试
+          </a>
           <button class="cute-btn cute-btn-primary refresh-btn">
             🔄 刷新数据
-          </button>
-          <button class="cute-btn cute-btn-primary" onclick="app.createSparkles()">
-            ✨ 撒花
           </button>
         </div>
       </div>
@@ -727,21 +851,76 @@ class ShengBotApp {
     return container;
   }
 
-  createSparkles() {
-    for (let i = 0; i < 30; i++) {
-      setTimeout(() => this.createSingleSparkle(), i * 50);
-    }
-    this.showToast('success', '好萌!', '✨ 樱吹雪 ✨');
-  }
-
-  createSingleSparkle() {
-    const sparkle = document.createElement('div');
-    sparkle.className = 'sparkle';
-    sparkle.style.left = `${Math.random() * window.innerWidth}px`;
-    sparkle.style.top = `${Math.random() * window.innerHeight}px`;
-    sparkle.style.animationDelay = `${Math.random() * 1}s`;
-    document.body.appendChild(sparkle);
-    setTimeout(() => sparkle.remove(), 2500);
+  // ================== 🧪 测试功能 ==================
+  getTestHTML() {
+    return `
+      <div class="cute-card">
+        <div class="card-header">
+          <h3 class="card-title">🧪 消息推送测试</h3>
+        </div>
+        
+        <div class="cute-form-row">
+          <div class="cute-form-group">
+            <label class="cute-label">选择机器人</label>
+            <select class="cute-select" id="test-bot-select">
+              <option value="">-- 选择一个QQ机器人 --</option>
+            </select>
+          </div>
+          <div class="cute-form-group">
+            <label class="cute-label">消息类型</label>
+            <select class="cute-select" id="test-type-select">
+              <option value="private">私聊消息</option>
+              <option value="group">群聊消息</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="cute-form-row">
+          <div class="cute-form-group">
+            <label class="cute-label">发送者ID</label>
+            <input type="text" class="cute-input" id="test-sender-id" value="123456789">
+          </div>
+          <div class="cute-form-group">
+            <label class="cute-label">群号(群聊必填)</label>
+            <input type="text" class="cute-input" id="test-group-id" value="987654321">
+          </div>
+        </div>
+        
+        <div class="cute-form-group">
+          <label class="cute-label">消息内容</label>
+          <textarea class="cute-input" id="test-content" rows="4">你好，这是一条测试消息！</textarea>
+        </div>
+        
+        <div class="cute-form-row">
+          <div class="cute-form-group">
+            <label class="cute-label">内容类型</label>
+            <select class="cute-select" id="test-content-type">
+              <option value="text">纯文本</option>
+              <option value="image">图片</option>
+              <option value="at">@消息</option>
+            </select>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 12px;">
+          <button class="cute-btn cute-btn-primary" id="test-send-btn">
+            🚀 发送测试消息
+          </button>
+          <button class="cute-btn cute-btn-success" id="test-refresh-bots-btn">
+            🔄 刷新机器人列表
+          </button>
+        </div>
+      </div>
+      
+      <div class="cute-card" style="margin-top: 16px;">
+        <div class="card-header">
+          <h3 class="card-title">📋 推送记录</h3>
+        </div>
+        <div id="test-log" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px;">
+          <div style="color: #888; padding: 8px;">暂无记录...</div>
+        </div>
+      </div>
+    `;
   }
 
   delay(ms) {

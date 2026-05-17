@@ -279,6 +279,49 @@ class AdminController
         }
       }
       
+      // Test API - Message simulation
+      elseif ($endpoint === 'test/send-message' && $method === 'POST') {
+        $botId = (int)($post['bot_id'] ?? 0);
+        $msgType = $post['type'] ?? 'private';
+        $senderId = $post['sender_id'] ?? '';
+        $groupId = $post['group_id'] ?? '';
+        $content = $post['content'] ?? '';
+        $contentType = $post['content_type'] ?? 'text';
+        
+        // Verify bot exists
+        $pdo = $this->db->getConnection();
+        $stmt = $pdo->prepare("SELECT * FROM qq_bots WHERE id = ?");
+        $stmt->execute([$botId]);
+        $bot = $stmt->fetch();
+        
+        if (!$bot) {
+          $response->status(404);
+          $data['success'] = false;
+          $data['error'] = '机器人不存在';
+          $this->db->addSystemLog('warning', '测试失败: 机器人不存在', ['bot_id' => $botId]);
+        } else {
+          // Record simulated message to message logs
+          $this->db->addMessageLog(
+            'qq',
+            $bot['appid'],
+            $senderId,
+            $msgType === 'group' ? $groupId : null,
+            $contentType,
+            $content
+          );
+          
+          $data['success'] = true;
+          $data['message'] = '模拟消息推送成功';
+          $this->db->addSystemLog('info', '模拟消息推送', [
+            'bot' => $bot['appid'],
+            'type' => $msgType,
+            'sender' => $senderId,
+            'group' => $groupId,
+            'content_type' => $contentType
+          ]);
+        }
+      }
+      
       else {
         $response->status(404);
         $data = ['success' => false, 'error' => 'Unknown endpoint'];
