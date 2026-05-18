@@ -1,4 +1,9 @@
 <?php
+/**
+ * 简单版服务器 - 模仿真实 server.php 的行为
+ * 不依赖 Swoole 扩展
+ */
+
 date_default_timezone_set('Asia/Shanghai');
 
 require_once __DIR__ . '/admin/数据库.php';
@@ -25,13 +30,49 @@ foreach ($qqBots as $bot) {
 $adminController = new AdminController();
 $adminController->setFrameworkConfig($config['framework']);
 
+// 添加启动日志
+$db->addSystemLog('info', 'Sheng_Bot 服务器启动', [
+    'php_version' => PHP_VERSION,
+    'http_port' => 9501
+]);
+
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 
+// 静态文件服务
+$staticMap = [
+    '/admin/index.html' => __DIR__ . '/admin/index.html',
+    '/admin/cute-app.js' => __DIR__ . '/admin/cute-app.js',
+    '/admin/cute-theme.css' => __DIR__ . '/admin/cute-theme.css',
+    '/admin/styles.css' => __DIR__ . '/admin/styles.css'
+];
+
+// 静态文件优先
+if (isset($staticMap[$uri])) {
+    $path = $staticMap[$uri];
+    if (file_exists($path)) {
+        // 根据 URI 直接确定内容类型
+        if (str_ends_with($uri, '.html')) {
+            header('Content-Type: text/html; charset=utf-8');
+        } elseif (str_ends_with($uri, '.js')) {
+            header('Content-Type: application/javascript; charset=utf-8');
+        } elseif (str_ends_with($uri, '.css')) {
+            header('Content-Type: text/css; charset=utf-8');
+        } else {
+            header('Content-Type: text/plain');
+        }
+        readfile($path);
+        exit;
+    }
+}
+
+// 管理后台请求
 if (str_starts_with($uri, '/admin')) {
-    // 处理管理后台请求
-    $_SERVER['REQUEST_METHOD'] = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($uri === '/admin' || $uri === '/admin/') {
+        header('Location: /admin/index.html');
+        exit;
+    }
     
-    // 模拟 Swoole 的 request/response
+    // 模拟 Swoole request/response
     $mockRequest = new class {
         public $server = [];
         public $header = [];
@@ -61,7 +102,6 @@ if (str_starts_with($uri, '/admin')) {
     $mockResponse = new class {
         public $headers = [];
         public $statusCode = 200;
-        public $content = '';
         
         public function status($code) {
             $this->statusCode = $code;
@@ -87,18 +127,10 @@ if (str_starts_with($uri, '/admin')) {
         $adminController->handle($mockRequest, $mockResponse);
     } catch (Throwable $e) {
         http_response_code(500);
-        echo 'Internal Server Error: ' . $e->getMessage() . "\n";
-        echo "<pre>" . $e->getTraceAsString() . "</pre>";
+        echo 'Internal Server Error: ' . $e->getMessage();
     }
-} else {
-    // 静态文件处理
-    $path = __DIR__ . '/admin/' . ltrim($uri, '/');
-    if (file_exists($path) && is_file($path)) {
-        $mime = mime_content_type($path);
-        header("Content-Type: $mime");
-        readfile($path);
-    } else {
-        // 默认重定向到管理后台
-        header('Location: /admin/');
-    }
+    exit;
 }
+
+// 默认重定向
+header('Location: /admin/');
