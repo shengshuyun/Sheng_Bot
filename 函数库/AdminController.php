@@ -14,8 +14,30 @@ class AdminController
     
     private function getSessionId($request)
     {
-        $cookies = $request->cookie ?? [];
-        return $cookies[$this->sessionIdKey] ?? uniqid('sb_', true);
+        // 从 Swoole 请求中获取 cookie
+        $sessionId = null;
+        if (property_exists($request, 'cookie') && is_array($request->cookie)) {
+            $sessionId = $request->cookie[$this->sessionIdKey] ?? null;
+        }
+        
+        // 如果没有找到，尝试从 header 中解析
+        if (!$sessionId && property_exists($request, 'header')) {
+            $cookieHeader = $request->header['cookie'] ?? '';
+            if ($cookieHeader) {
+                $cookies = [];
+                $parts = explode(';', $cookieHeader);
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if (strpos($part, '=') !== false) {
+                        list($name, $value) = explode('=', $part, 2);
+                        $cookies[trim($name)] = trim($value);
+                    }
+                }
+                $sessionId = $cookies[$this->sessionIdKey] ?? null;
+            }
+        }
+        
+        return $sessionId ?? uniqid('sb_', true);
     }
     
     private function setSession($response, $sessionId, $data)
@@ -25,7 +47,14 @@ class AdminController
             'expire' => time() + 3600
         ];
         
-        $response->cookie($this->sessionIdKey, $sessionId, time() + 3600);
+        // 使用 Swoole 的 cookie 设置方法
+        if (method_exists($response, 'cookie')) {
+            $response->cookie($this->sessionIdKey, $sessionId, time() + 3600, '/');
+        } else {
+            // 备选方案，通过 header 设置
+            $cookieValue = $this->sessionIdKey . '=' . $sessionId . '; Path=/; Expires=' . gmdate('D, d M Y H:i:s T', time() + 3600);
+            $response->header('Set-Cookie', $cookieValue);
+        }
     }
     
     private function getSession($request)
@@ -64,60 +93,164 @@ class AdminController
         $uri = $request->server['request_uri'] ?? '/';
         
         $isInstalled = $this->db->isInstalled();
+        $isLoggedIn = $this->isLoggedIn($request);
         
-        // 如果已安装，不允许访问安装页面（除了 /admin/install/do）
-        if ($isInstalled && substr($uri, 0, 14) === '/admin/install' && $uri !== '/admin/install/do') {
-            $this->redirect($response, '/admin/');
-            return;
-        }
-        
-        // 如果未安装，只允许访问安装相关页面
-        if (!$isInstalled && substr($uri, 0, 14) !== '/admin/install') {
-            $this->redirect($response, '/admin/install');
-            return;
-        }
-        
-        // 如果已安装但未登录，只允许访问登录页面
-        if ($isInstalled && !$this->isLoggedIn($request) && 
-            substr($uri, 0, 11) !== '/admin/login') {
-            $this->redirect($response, '/admin/login');
-            return;
-        }
-        
+        // 直接匹配路由，处理所有请求
         if ($uri === '/admin/install') {
+            if ($isInstalled) {
+                $this->redirect($response, '/admin/');
+                return;
+            }
             $this->installPage($request, $response);
+            return;
         } elseif ($uri === '/admin/install/do') {
             $this->doInstall($request, $response);
+            return;
         } elseif ($uri === '/admin/login') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
             $this->loginPage($request, $response);
+            return;
         } elseif ($uri === '/admin/login/do') {
             $this->doLogin($request, $response);
+            return;
         } elseif ($uri === '/admin/logout') {
             $this->doLogout($request, $response);
+            return;
         } elseif ($uri === '/admin/' || $uri === '/admin') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->indexPage($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/qq') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->qqBotsPage($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/qq/add') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->addQqBot($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/qq/delete') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->deleteQqBot($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/napcat') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->napcatBotsPage($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/napcat/add') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->addNapcatBot($request, $response);
+            return;
         } elseif ($uri === '/admin/bots/napcat/delete') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->deleteNapcatBot($request, $response);
+            return;
         } elseif ($uri === '/admin/logs') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->messageLogsPage($request, $response);
+            return;
         } elseif ($uri === '/admin/system/logs') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->systemLogsPage($request, $response);
+            return;
         } elseif ($uri === '/admin/settings') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->settingsPage($request, $response);
+            return;
         } elseif ($uri === '/admin/settings/save') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->saveSettings($request, $response);
+            return;
         } elseif ($uri === '/admin/settings/password') {
+            if (!$isInstalled) {
+                $this->redirect($response, '/admin/install');
+                return;
+            }
+            if (!$isLoggedIn) {
+                $this->redirect($response, '/admin/login');
+                return;
+            }
             $this->savePassword($request, $response);
+            return;
         } else {
             $response->status(404);
             $response->end($this->html('<div class="container mt-5"><h1>404 - 页面不存在</h1></div>'));
