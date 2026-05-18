@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../admin/数据库.php';
 
+use PDO;
+
 class AdminController
 {
     private $db;
@@ -91,11 +93,205 @@ class AdminController
     public function handle($request, $response)
     {
         $uri = $request->server['request_uri'] ?? '/';
+        $method = $request->server['request_method'] ?? 'GET';
         
         $isInstalled = $this->db->isInstalled();
         $isLoggedIn = $this->isLoggedIn($request);
         
-        // 直接匹配路由，处理所有请求
+        // ================== 少女风前端 API 路由 ==================
+        if (str_starts_with($uri, '/admin/api/')) {
+            $apiUri = substr($uri, 11); // 去掉 /admin/api/
+            
+            // CSRF Token
+            if ($apiUri === 'csrf-token' && $method === 'GET') {
+                $this->json($response, ['csrf_token' => uniqid('csrf_', true)]);
+                return;
+            }
+            
+            // Stats (Dashboard)
+            if ($apiUri === 'stats' && $method === 'GET') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $pdo = $this->db->getConnection();
+                $this->json($response, [
+                    'qqBots' => $pdo->query("SELECT COUNT(*) FROM qq_bots")->fetchColumn(),
+                    'napcatBots' => $pdo->query("SELECT COUNT(*) FROM napcat_bots")->fetchColumn(),
+                    'messageLogs' => $pdo->query("SELECT COUNT(*) FROM message_logs")->fetchColumn(),
+                    'systemLogs' => 0,
+                    'phpVersion' => PHP_VERSION,
+                    'swooleVersion' => SWOOLE_VERSION
+                ]);
+                return;
+            }
+            
+            // QQ Bots
+            if ($apiUri === 'qq-bots') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                if ($method === 'GET') {
+                    $pdo = $this->db->getConnection();
+                    $bots = $pdo->query("SELECT * FROM qq_bots ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+                    $this->json($response, ['bots' => $bots]);
+                    return;
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    $appid = trim($post['appid'] ?? '');
+                    $secret = trim($post['secret'] ?? '');
+                    $sandbox = ($post['sandbox'] ?? '1') === '1';
+                    if ($appid && $secret) {
+                        $pdo = $this->db->getConnection();
+                        $stmt = $pdo->prepare("INSERT INTO qq_bots (appid, secret, sandbox, created_at) VALUES (?, ?, ?, datetime('now'))");
+                        $stmt->execute([$appid, $secret, $sandbox ? 1 : 0]);
+                        $this->json($response, ['success' => true, 'message' => '添加成功']);
+                    } else {
+                        $this->json($response, ['error' => '参数不完整'], 400);
+                    }
+                    return;
+                }
+            }
+            
+            // QQ Bot Delete
+            if (preg_match('#^qq-bots/(\d+)$#', $apiUri, $matches) && $method === 'DELETE') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $id = $matches[1];
+                $pdo = $this->db->getConnection();
+                $stmt = $pdo->prepare("DELETE FROM qq_bots WHERE id = ?");
+                $stmt->execute([$id]);
+                $this->json($response, ['success' => true, 'message' => '删除成功']);
+                return;
+            }
+            
+            // NapCat Bots
+            if ($apiUri === 'napcat-bots') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                if ($method === 'GET') {
+                    $pdo = $this->db->getConnection();
+                    $bots = $pdo->query("SELECT * FROM napcat_bots ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+                    $this->json($response, ['bots' => $bots]);
+                    return;
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    $qq = trim($post['qq'] ?? '');
+                    $httpUrl = trim($post['http_url'] ?? '');
+                    $token = trim($post['token'] ?? '');
+                    if ($qq && $httpUrl) {
+                        $pdo = $this->db->getConnection();
+                        $stmt = $pdo->prepare("INSERT INTO napcat_bots (qq, http_url, token, created_at) VALUES (?, ?, ?, datetime('now'))");
+                        $stmt->execute([$qq, $httpUrl, $token]);
+                        $this->json($response, ['success' => true, 'message' => '添加成功']);
+                    } else {
+                        $this->json($response, ['error' => '参数不完整'], 400);
+                    }
+                    return;
+                }
+            }
+            
+            // NapCat Bot Delete
+            if (preg_match('#^napcat-bots/(\d+)$#', $apiUri, $matches) && $method === 'DELETE') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $id = $matches[1];
+                $pdo = $this->db->getConnection();
+                $stmt = $pdo->prepare("DELETE FROM napcat_bots WHERE id = ?");
+                $stmt->execute([$id]);
+                $this->json($response, ['success' => true, 'message' => '删除成功']);
+                return;
+            }
+            
+            // Message Logs
+            if ($apiUri === 'message-logs' && $method === 'GET') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $pdo = $this->db->getConnection();
+                $logs = $pdo->query("SELECT * FROM message_logs ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+                $this->json($response, ['logs' => $logs]);
+                return;
+            }
+            
+            // System Logs
+            if ($apiUri === 'system-logs' && $method === 'GET') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $this->json($response, ['logs' => []]);
+                return;
+            }
+            
+            // Settings
+            if ($apiUri === 'settings') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                if ($method === 'GET') {
+                    $this->json($response, [
+                        'settings' => [
+                            'site_name' => $this->db->getConfig('site_name', 'Sheng_Bot'),
+                            'domain' => $this->db->getConfig('domain', '0.0.0.0'),
+                            'http_port' => $this->db->getConfig('http_port', 9501),
+                            'https_port' => $this->db->getConfig('https_port', 9502),
+                            'db_pool_max_size' => $this->db->getConfig('db_pool_max_size', 10),
+                            'db_pool_min_size' => $this->db->getConfig('db_pool_min_size', 2),
+                            'db_pool_timeout' => $this->db->getConfig('db_pool_timeout', 5),
+                            'query_cache_enabled' => $this->db->getConfig('query_cache_enabled', true),
+                            'query_cache_ttl' => $this->db->getConfig('query_cache_ttl', 300),
+                            'query_cache_max_size' => $this->db->getConfig('query_cache_max_size', 1000),
+                            'log_level' => $this->db->getConfig('log_level', 'info'),
+                            'log_max_file_size' => $this->db->getConfig('log_max_file_size', 10),
+                            'log_max_files' => $this->db->getConfig('log_max_files', 10),
+                            'log_to_database' => $this->db->getConfig('log_to_database', true),
+                            'log_to_file' => $this->db->getConfig('log_to_file', true)
+                        ]
+                    ]);
+                    return;
+                } elseif ($method === 'POST') {
+                    $post = $request->post ?? [];
+                    foreach ($post as $key => $value) {
+                        if ($value === 'true') $value = true;
+                        elseif ($value === 'false') $value = false;
+                        elseif (!is_array($value) && is_numeric($value)) $value = (int)$value;
+                        $this->db->setConfig($key, $value);
+                    }
+                    $this->json($response, ['success' => true, 'message' => '保存成功']);
+                    return;
+                }
+            }
+            
+            // Test Send Message
+            if ($apiUri === 'test/send-message' && $method === 'POST') {
+                if (!$isInstalled) {
+                    $this->json($response, ['error' => '未安装'], 403);
+                    return;
+                }
+                $this->json($response, [
+                    'success' => true,
+                    'message' => '测试功能开发中',
+                    'event' => $request->post
+                ]);
+                return;
+            }
+            
+            // 404 for API
+            $this->json($response, ['error' => 'API 端点不存在'], 404);
+            return;
+        }
+        
+        // ================== 旧版路由（兼容）==================
         if ($uri === '/admin/install') {
             if ($isInstalled) {
                 $this->redirect($response, '/admin/');
@@ -255,6 +451,13 @@ class AdminController
             $response->status(404);
             $response->end($this->html('<div class="container mt-5"><h1>404 - 页面不存在</h1></div>'));
         }
+    }
+    
+    private function json($response, $data, $status = 200)
+    {
+        $response->status($status);
+        $response->header('Content-Type', 'application/json; charset=utf-8');
+        $response->end(json_encode($data, JSON_UNESCAPED_UNICODE));
     }
     
     private function redirect($response, $url)

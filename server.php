@@ -59,11 +59,44 @@ Coroutine\run(function () {
         try {
             $uri = $request->server['request_uri'] ?? '/';
             
+            // 1. 首先尝试返回静态文件（少女风前端）
+            $staticFile = __DIR__ . $uri;
+            if (file_exists($staticFile) && is_file($staticFile)) {
+                $ext = strtolower(pathinfo($staticFile, PATHINFO_EXTENSION));
+                $contentTypes = [
+                    'html' => 'text/html; charset=utf-8',
+                    'css' => 'text/css; charset=utf-8',
+                    'js' => 'application/javascript; charset=utf-8',
+                    'json' => 'application/json; charset=utf-8',
+                    'png' => 'image/png',
+                    'jpg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'svg' => 'image/svg+xml',
+                    'ico' => 'image/x-icon'
+                ];
+                $contentType = $contentTypes[$ext] ?? 'text/plain';
+                $response->header('Content-Type', $contentType);
+                $response->end(file_get_contents($staticFile));
+                return;
+            }
+            
+            // 2. 如果是 /admin/ 或 /admin 且不是 API，返回 index.html（SPA）
+            if ($uri === '/admin/' || $uri === '/admin') {
+                $indexFile = __DIR__ . '/admin/index.html';
+                if (file_exists($indexFile)) {
+                    $response->header('Content-Type', 'text/html; charset=utf-8');
+                    $response->end(file_get_contents($indexFile));
+                    return;
+                }
+            }
+            
+            // 3. 处理 AdminController（API 路由）
             if (str_starts_with($uri, '/admin')) {
                 $adminController->handle($request, $response);
                 return;
             }
             
+            // 4. 处理其他请求
             $处理程序($request, $response, $config['framework']);
         } catch (Throwable $e) {
             $response->status(500);
