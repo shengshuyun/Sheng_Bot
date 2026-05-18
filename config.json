@@ -1,0 +1,20 @@
+{
+  "域名": "0.0.0.0",
+  "http端口": 9501,
+  "https端口": 9502,
+  "ssl证书": "证书/pem",
+  "ssl密钥": "证书/key",
+  "框架": {
+    "QQBOT": [
+      { "appid": 101996091,
+        "secret": "jBe7b6b7dAhFnMvV6hJvYBpT8nTArZH0",
+        "sandbox": true
+      }
+    ],
+    "napcat": [
+      { "qq": 42690279,
+        "http_url": "http://127.0.0.1:3000",
+        "token": "Lv2FduE4sY2aFllZ" }
+    ]
+  }
+}
