@@ -6,7 +6,7 @@ class SQLiteDatabase
     private static ?PDO $instance = null;
     private string $dbPath;
     
-    public function __construct(string $dbPath = null)
+    public function __construct(?string $dbPath = null)
     {
         $this->dbPath = $dbPath ?? __DIR__ . '/../数据/sheng_bot.db';
         $this->initDatabase();

@@ -1,8 +1,6 @@
 <?php
 require_once __DIR__ . '/../admin/数据库.php';
 
-use PDO;
-
 class AdminController
 {
     private $db;
