@@ -14,53 +14,61 @@
 - 协程安全的 JSON 数据库
 - 日志批量写入，减少锁竞争
 
+## 快速开始
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/shengshuyun/Sheng_Bot.git sheng
+cd sheng
+```
+
+### 2. 安装依赖
+
+```bash
+composer install
+```
+
+### 3. 配置
+
+```bash
+cp config.example.json config.json
+```
+
+编辑 `config.json`，填入你的配置：
+
+- **官方QQBot**：在 [QQ开放平台](https://q.qq.com) 创建机器人，获取 `appid` 和 `secret`
+- **NapCat**：安装 [NapCat](https://napneko.github.io/)，获取 `http_url` 和 `token`
+- **SSL 证书**：将证书文件放入 `证书/` 目录
+
+不需要的框架可以删除对应配置项或留空数组 `[]`。
+
+### 4. 运行
+
+```bash
+# 直接运行
+php server.php
+
+# 或使用进程守护（推荐）
+php swoole_watchdog.php
+```
+
+### 5. 配置 Webhook
+
+将你的服务器地址填入 QQ 开放平台的 Webhook 回调地址：
+
+```
+https://your-domain.com/
+```
+
 ## 环境要求
 
 - PHP >= 8.4
 - Swoole 扩展 >= 6.0
 - sodium 扩展（用于 Ed25519 鉴权）
+- SSL 证书（HTTPS 必须）
 
-## 安装
-
-```bash
-git clone <your-repo-url> sheng
-cd sheng
-composer install
-```
-
-## 配置
-
-编辑 `config.json`：
-
-```json
-{
-  "域名": "your-domain.com",
-  "http端口": 80,
-  "https端口": 443,
-  "ssl证书": "证书/pem",
-  "ssl密钥": "证书/key",
-  "连接池大小": 8,
-  "连接超时": 10,
-  "框架": {
-    "QQBOT": [
-      {
-        "appid": 你的appid,
-        "secret": "你的secret",
-        "sandbox": false
-      }
-    ],
-    "napcat": [
-      {
-        "qq": 你的QQ号,
-        "http_url": "http://127.0.0.1:3000",
-        "token": "你的token"
-      }
-    ]
-  }
-}
-```
-
-### 配置项说明
+## 配置项说明
 
 | 字段 | 类型 | 说明 |
 |------|------|------|

@@ -12,6 +12,9 @@ use ShengBot\Core\Logger;
 use ShengBot\Core\HttpClientPool;
 
 if (!file_exists(__DIR__ . '/config.json')) {
+    if (file_exists(__DIR__ . '/config.example.json')) {
+        exit("请先复制配置文件：cp config.example.json config.json，然后编辑填入你的配置\n");
+    }
     exit("配置文件失踪了....Www" . PHP_EOL);
 }
 
