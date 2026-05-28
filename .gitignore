@@ -1,0 +1,7 @@
+/vendor/
+/composer.lock
+/数据/
+/证书/
+*.log
+*.bak
+.env

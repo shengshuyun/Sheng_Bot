@@ -1,10 +1,14 @@
 <?php
 
 if ($this->用户信息 == "图片") {
-    $this->发送("图片", "https://api.komll.com/images");
+    $this->发送("图片", "https://www.dmoe.cc/random.php");
 }
 
 if ($this->用户信息 == "图文") {
+    $this->发送("图片", "https://www.dmoe.cc/random.php", "这是附带的文本");
+}
+
+if ($this->用户信息 == "失败图文") {
     $this->发送("图片", "https://api.komll.com/images", "这是附带的文本");
 }
 

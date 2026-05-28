@@ -1,0 +1,18 @@
+{
+    "name": "sheng/bot",
+    "description": "基于Swoole的QQ机器人框架，支持官方QQBot API和NapCat",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-swoole": ">=6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ShengBot\\": "src/"
+        },
+        "files": [
+            "src/Protobuf/helpers.php"
+        ]
+    }
+}

@@ -49,7 +49,7 @@ if ($this->用户信息 == "原生") {
                         "render_data" => [
                             "label" => "点我",
                             "visited_label" => "成功！",
-                            "style" => 2
+                            "style" => 1
                         ],
                         "action" => [
                             "type" => 1,
@@ -61,6 +61,23 @@ if ($this->用户信息 == "原生") {
                             "data" => "点击测试"
                         ],
                         "id" => "btn_fd4flyc"
+                    ],
+                    [
+                        "render_data" => [
+                            "label" => "别点",
+                            "visited_label" => "失败！",
+                            "style" => 1
+                        ],
+                        "action" => [
+                            "type" => 1,
+                            "permission" => [
+                                "type" => 0,
+                                "specify_user_ids" => ["{$this->用户ID}"]
+                            ],
+                            "unsupport_tips" => "当前版本不支持该操作",
+                            "data" => "点击失败测试"
+                        ],
+                        "id" => "btn_fd4flyy"
                     ]
                 ]
             ]
@@ -78,11 +95,15 @@ $\textcolor{red}{● 重要提醒：}$
 1. 机器人维护时间：$\textcolor{blue}{每晚 23:00-01:00}$
 2. 遇到问题请戳下面按钮反馈
 
-$\textcolor{gray}{— 机器人管理组}$' , 
+$\textcolor{gray}{— 机器人管理组}$', 
 $附加2);
 
 }
 
-if ($this->按钮数据 == "点击测试" && $this->按钮ID = "btn_fd4flyc") {
+if ($this->按钮数据 == "点击测试" && $this->按钮ID == "btn_fd4flyc") {
     $this->发送("文本", "按钮测试成功");
+}
+
+if ($this->按钮数据 == "点击失败测试" && $this->按钮ID == "btn_fd4flyy") {
+    $this->发送("文本", "都说了别点！");
 }
