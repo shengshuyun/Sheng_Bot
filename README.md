@@ -13,6 +13,8 @@
 - Token 静态缓存，避免重复请求
 - 协程安全的 JSON 数据库
 - 日志批量写入，减少锁竞争
+- 超级管理员权限系统
+- 消息撤回与互动召回
 
 ## 快速开始
 
@@ -40,6 +42,7 @@ cp config.example.json config.json
 - **官方QQBot**：在 [QQ开放平台](https://q.qq.com) 创建机器人，获取 `appid` 和 `secret`
 - **NapCat**：安装 [NapCat](https://napneko.github.io/)，获取 `http_url` 和 `token`
 - **SSL 证书**：将证书文件放入 `证书/` 目录
+- **超级管理员**：设置管理员用户 ID（支持多个）
 
 不需要的框架可以删除对应配置项或留空数组 `[]`。
 
@@ -79,8 +82,24 @@ https://your-domain.com/
 | `ssl密钥` | string | SSL 密钥文件路径 |
 | `连接池大小` | int | HTTP 连接池最大连接数，默认 8 |
 | `连接超时` | int | HTTP 连接超时秒数，默认 10 |
+| `超级管理员` | array | 管理员用户 ID 列表，支持多个 |
 | `框架.QQBOT` | array | 官方QQBot 账号配置，支持多个 |
 | `框架.napcat` | array | NapCat 账号配置，支持多个 |
+
+### 超级管理员配置
+
+```json
+{
+  "超级管理员": [
+    "用户ID1",
+    "用户ID2"
+  ]
+}
+```
+
+- 官方QQ使用 openid（如 `F94416C60651D8B57F722F8ECC81C156`）
+- NapCat 使用纯数字 QQ 号
+- 可从日志中获取用户 ID
 
 ### QQBot 账号配置
 
@@ -115,6 +134,7 @@ php swoole_watchdog.php
 进程守护功能：
 - 主进程崩溃自动重启（退避策略：3s、6s、9s...最大60s）
 - 最多重启 10 次，避免无限循环
+- 正常重启（通过指令）不计入重启次数，无退避延迟
 - 端口占用时自动停止，不重试
 - 支持 Ctrl+C 优雅关闭
 
@@ -147,7 +167,7 @@ sheng/
 │   │   └── HttpClientPool.php  # HTTP 连接池
 │   ├── Adapters/
 │   │   ├── AdapterInterface.php  # 适配器接口
-│   │   ├── BaseAdapter.php       # 适配器基类
+│   │   ├── BaseAdapter.php       # 适配器基类（含权限判定）
 │   │   ├── OfficialQQBot.php     # 官方QQ适配器
 │   │   └── NapCatBot.php         # NapCat适配器
 │   ├── Traits/
@@ -211,6 +231,7 @@ if ($this->用户信息 == "你好") {
 | `$this->用户信息` | string | 用户发送的消息文本（已去除前缀 `/`） |
 | `$this->用户ID` | string | 发送者的用户 ID |
 | `$this->用户昵称` | string | 发送者的昵称（仅群聊全量消息） |
+| `$this->艾特用户` | string | 被艾特的用户 ID（群全量消息） |
 | `$this->来源ID` | string | 来源 ID（群号/频道ID/用户ID） |
 | `$this->信息ID` | string | 消息 ID（用于被动回复） |
 | `$this->事件ID` | string | 事件 ID |
@@ -219,6 +240,15 @@ if ($this->用户信息 == "你好") {
 | `$this->按钮来源` | string | 按钮点击来源（`c2c`/`group`） |
 | `$this->按钮数据` | string | 按钮自定义数据 |
 | `$this->按钮ID` | string | 按钮 ID |
+
+### 权限判定
+
+```php
+// 判断当前用户是否是超级管理员
+if ($this->是管理员()) {
+    // 管理员专属操作
+}
+```
 
 ### 事件类型
 
@@ -293,6 +323,35 @@ $this->发送("文件", "https://example.com/file.zip");
 ```php
 $this->发送("直发", "https://example.com/image.jpg", "附带文本");
 ```
+
+### 撤回消息
+
+```php
+// 发送消息并获取消息 ID
+$消息ID = $this->发送("文本", "这条消息会被撤回");
+
+// 撤回消息（2分钟内有效）
+$this->撤回($消息ID);
+
+// 延迟撤回示例
+$this->定时器("延迟", 3000, function() use ($消息ID) {
+    $this->撤回($消息ID);
+});
+```
+
+### 互动召回消息
+
+仅单聊场景可用，用于提醒用户回来互动：
+
+```php
+// 发送互动召回消息
+$this->发送召回("好久不见，快来看看新功能吧！");
+```
+
+**召回规则：**
+- 用户主动与机器人对话后，可下发召回消息
+- 周期：当天、1-3天、3-7天、7-30天
+- 每周期可下发 1 条
 
 ### 流式消息
 
@@ -473,6 +532,8 @@ $resp = $this->发包("trpc.msg.register_proxy.RegisterProxy.SsoGetGroupMsg", $p
 | `流式测试.php` | 流式消息（打字效果）示例 |
 | `测试.php` | 定时器（延迟/循环/清除）示例 |
 | `频道操作.php` | API 地址查询、直发示例 |
+| `撤回示例.php` | 消息撤回、互动召款示例 |
+| `系统管理.php` | 框架重启/重载（仅超级管理员） |
 
 ### NapCat 插件
 
@@ -480,6 +541,23 @@ $resp = $this->发包("trpc.msg.register_proxy.RegisterProxy.SsoGetGroupMsg", $p
 |------|------|
 | `测试.php` | Protobuf 发包、消息转发、按钮提取 |
 | `转发.php` | 跨框架消息转发（NapCat → 官方QQ） |
+
+---
+
+## 系统管理
+
+超级管理员可通过指令远程管理框架：
+
+| 指令 | 功能 |
+|------|------|
+| `重启` | 重启框架主进程 |
+| `重载` | 重启框架主进程（同重启） |
+
+**特性：**
+- 仅超级管理员可用
+- 重启成功后自动推送消息
+- 正常重启不计入崩溃次数，无退避延迟
+- 终端输出新 PID
 
 ---
 
