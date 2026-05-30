@@ -26,9 +26,22 @@ if (!$this->是管理员()) {
     return;
 }
 
+// 写入重启标记
+$重启标记 = __DIR__ . '/../../数据/重启标记.json';
+file_put_contents($重启标记, json_encode([
+    '时间' => microtime(true),
+    '用户ID' => $this->用户ID,
+    '来源ID' => $this->来源ID,
+    '事件类型' => $this->事件类型
+]));
+
 // 执行重启
 $this->发送('文本', '✅ 正在重启框架...');
 $this->logger->info("[系统管理] 收到重启请求，正在重启...");
 
-// server.php 已经捕获 Swoole\ExitException，所以 exit() 可以正常退出
-throw new \Swoole\ExitException(0);
+// 延迟后杀死当前进程
+$pid = getmypid();
+\Swoole\Timer::after(500, function() use ($pid) {
+    // 使用特殊退出码 4，让 watchdog 知道是正常重启
+    posix_kill($pid, SIGTERM);
+});

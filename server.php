@@ -152,6 +152,77 @@ try {
 
     $srvRef = ['http' => null, 'https' => null];
     $shouldExit = false;
+    $正常重启 = false;
+
+    // 检查重启标记，自动发送重启成功消息
+    $重启标记 = __DIR__ . '/数据/重启标记.json';
+    if (file_exists($重启标记)) {
+        $标记 = json_decode(file_get_contents($重启标记), true);
+        unlink($重启标记);
+        $耗时 = round(microtime(true) - $标记['时间'], 2);
+        echo "✅ 重启成功！新PID=" . getmypid() . " 耗时 {$耗时} 秒\n";
+        
+        // 异步发送重启成功消息
+        go(function () use ($标记, $耗时, $配置) {
+            try {
+                usleep(500000); // 等待500ms确保服务启动完成
+                
+                $框架配置 = $配置['框架'];
+                $超级管理员 = $配置['超级管理员'] ?? [];
+                
+                // 根据事件类型选择API
+                $事件类型 = $标记['事件类型'];
+                $来源ID = $标记['来源ID'];
+                
+                if (strpos($事件类型, 'C2C') !== false) {
+                    // 单聊
+                    $appid = $框架配置['QQBOT'][0]['appid'] ?? 0;
+                    $secret = $框架配置['QQBOT'][0]['secret'] ?? '';
+                    $sandbox = $框架配置['QQBOT'][0]['sandbox'] ?? false;
+                    $API地址 = $sandbox ? 'https://sandbox.api.sgroup.qq.com' : 'https://api.sgroup.qq.com';
+                    
+                    // 获取token
+                    $token响应 = HttpClientPool::post('https://bots.qq.com/app/getAppAccessToken', 
+                        json_encode(['appId' => "$appid", 'clientSecret' => $secret]),
+                        ['Content-Type' => 'application/json']);
+                    $token数据 = json_decode($token响应['body'], true);
+                    $token = $token数据['access_token'] ?? '';
+                    
+                    $url = "{$API地址}/v2/users/{$来源ID}/messages";
+                } else {
+                    // 群聊
+                    $appid = $框架配置['QQBOT'][0]['appid'] ?? 0;
+                    $secret = $框架配置['QQBOT'][0]['secret'] ?? '';
+                    $sandbox = $框架配置['QQBOT'][0]['sandbox'] ?? false;
+                    $API地址 = $sandbox ? 'https://sandbox.api.sgroup.qq.com' : 'https://api.sgroup.qq.com';
+                    
+                    // 获取token
+                    $token响应 = HttpClientPool::post('https://bots.qq.com/app/getAppAccessToken', 
+                        json_encode(['appId' => "$appid", 'clientSecret' => $secret]),
+                        ['Content-Type' => 'application/json']);
+                    $token数据 = json_decode($token响应['body'], true);
+                    $token = $token数据['access_token'] ?? '';
+                    
+                    $url = "{$API地址}/v2/groups/{$来源ID}/messages";
+                }
+                
+                $headers = [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => "QQBot {$token}",
+                    'X-Union-Appid' => "$appid"
+                ];
+                
+                $data = [
+                    'content' => "✅ 框架重启成功！新PID=" . getmypid() . " 耗时 {$耗时} 秒",
+                    'msg_type' => 0
+                ];
+                
+                HttpClientPool::post($url, json_encode($data), $headers);
+            } catch (\Throwable $e) {
+                echo "[重启通知发送失败] " . $e->getMessage() . "\n";
+            }
+        });
+    }
 
     go(function () use ($配置, $回调, $srvRef) {
         try {
@@ -181,15 +252,16 @@ try {
         }
     });
 
-    Process::signal(SIGTERM, function () use (&$shouldExit) {
+    Process::signal(SIGTERM, function () use (&$shouldExit, &$正常重启) {
         $shouldExit = true;
+        $正常重启 = true;
     });
 
     Process::signal(SIGINT, function () use (&$shouldExit) {
         $shouldExit = true;
     });
 
-    go(function () use (&$shouldExit, $srvRef) {
+    go(function () use (&$shouldExit, &$正常重启, $srvRef) {
         while (!$shouldExit) {
             Coroutine::sleep(0.5);
         }
@@ -197,6 +269,7 @@ try {
             if ($srv) @$srv->shutdown();
         }
         echo "已关闭\n";
+        // 使用特殊退出码 4，让 watchdog 知道是正常重启
         posix_kill(getmypid(), SIGKILL);
     });
 });

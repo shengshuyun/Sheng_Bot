@@ -9,6 +9,7 @@ const LOG_FILE    = __DIR__ . '/日志/wd.log';
 const MAX_RESTARTS = 10;
 const BASE_BACKOFF = 3;
 const MAX_BACKOFF  = 60;
+const RESTART_MARKER = __DIR__ . '/数据/重启标记.json';
 
 !is_dir(__DIR__ . '/日志') && mkdir(__DIR__ . '/日志', 0777, true);
 
@@ -54,7 +55,7 @@ while (!$shouldStop) {
     
     $exited = false;
     
-    Coroutine\run(function () use ($proc, $pid, &$exited, &$shouldStop) {
+    Coroutine\run(function () use ($proc, $pid, &$exited, &$shouldStop, &$restartCount) {
         $pipe = fopen('php://fd/' . $proc->pipe, 'r+');
         stream_set_blocking($pipe, false);
 
@@ -91,6 +92,11 @@ while (!$shouldStop) {
                 if ($code === 3) {
                     println("端口被占用，停止守护");
                     $shouldStop = true;
+                }
+                // 检测重启标记文件，如果存在说明是正常重启
+                if (file_exists(RESTART_MARKER)) {
+                    $restartCount--; // 不计入重启次数
+                    println("检测到正常重启请求，不计入重启次数");
                 }
                 $exited = true;
             }
