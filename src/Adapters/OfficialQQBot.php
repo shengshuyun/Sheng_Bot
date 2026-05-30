@@ -165,8 +165,20 @@ class OfficialQQBot extends BaseAdapter
 
                     case "GROUP_MESSAGE_CREATE":
                         $this->用户ID   = $解析["d"]["author"]["id"];
-                        $this->用户昵称 = $解析["d"]["author"]["username"];
-                        $this->用户信息 = ltrim(trim($解析["d"]["content"]), '/');
+                        $this->用户昵称 = $解析["d"]["author"]["username"] ?? '';
+                        $content = $解析["d"]["content"] ?? '';
+                        
+                        // 检测艾特信息
+                        if (preg_match('/<@([A-F0-9]+)>/i', $content, $matches)) {
+                            $this->艾特用户 = $matches[1];
+                            // 去除艾特标记获取纯文本
+                            $纯文本 = preg_replace('/<@[A-F0-9]+>\s*/i', '', $content);
+                            $this->用户信息 = ltrim(trim($纯文本), '/');
+                        } else {
+                            $this->艾特用户 = '';
+                            $this->用户信息 = ltrim(trim($content), '/');
+                        }
+                        
                         $this->来源ID   = $解析["d"]["group_id"];
                         $this->信息ID   = $解析["d"]["id"];
                         $this->事件ID   = $解析["id"];

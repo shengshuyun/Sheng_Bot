@@ -18,6 +18,7 @@ abstract class BaseAdapter implements AdapterInterface
     public string $来源ID = '';
     public string $信息ID = '';
     public string $用户ID = '';
+    public string $艾特用户 = '';
     public mixed $用户信息 = null;
     public string $事件类型 = '';
     protected Logger $logger;
