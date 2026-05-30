@@ -29,6 +29,11 @@ abstract class BaseAdapter implements AdapterInterface
         $this->超级管理员 = $超级管理员;
         $this->数据库路径 = __DIR__ . '/../../数据/数据库';
         $this->logger = new Logger();
+        
+        // 调试：记录加载的超级管理员
+        if (!empty($超级管理员)) {
+            $this->logger->info("[权限] 加载超级管理员: " . implode(', ', $超级管理员));
+        }
     }
 
     /**
@@ -36,7 +41,11 @@ abstract class BaseAdapter implements AdapterInterface
      */
     public function 是管理员(): bool
     {
-        return in_array($this->用户ID, $this->超级管理员);
+        $结果 = in_array($this->用户ID, $this->超级管理员);
+        if (!$结果 && !empty($this->超级管理员)) {
+            $this->logger->info("[权限] 用户 {$this->用户ID} 不在管理员列表中");
+        }
+        return $结果;
     }
 
     protected function 异步处理(array $解析, callable $处理器): void
