@@ -142,7 +142,7 @@ try {
 
     $回调 = function (\Swoole\Http\Request $请求, \Swoole\Http\Response $响应) use ($配置, $logger) {
         try {
-            Router::分发($请求, $响应, $配置["框架"]);
+            Router::分发($请求, $响应, $配置);
         } catch (Throwable $e) {
             $logger->error("[请求异常] " . $e->getMessage() . "\n" . $e->getTraceAsString());
             $响应->status(500);

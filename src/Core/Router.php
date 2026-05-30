@@ -16,9 +16,12 @@ class Router
             return;
         }
 
+        $超级管理员 = $配置['超级管理员'] ?? [];
+        $框架配置 = $配置['框架'] ?? [];
+
         $适配器 = match (true) {
-            isset($请求->header['x-bot-appid']) => new OfficialQQBot($配置['QQBOT'] ?? []),
-            isset($请求->header['x-self-id'])   => new NapCatBot($配置['napcat'] ?? []),
+            isset($请求->header['x-bot-appid']) => new OfficialQQBot($框架配置['QQBOT'] ?? [], $超级管理员),
+            isset($请求->header['x-self-id'])   => new NapCatBot($框架配置['napcat'] ?? [], $超级管理员),
             default => null
         };
 

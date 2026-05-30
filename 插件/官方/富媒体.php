@@ -20,6 +20,10 @@ if ($this->用户信息 == "文件") {
     $this->发送("文件", "https://github.com/shengshuyun/Sheng_Bot/archive/refs/heads/main.zip");
 }
 
+if ($this->用户信息 == "视频文件") {
+    $this->发送("文件", "https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4");
+}
+
 if ($this->用户信息 == "语音") {
     $this->发送("语音", "http://music.163.com/song/media/outer/url?id=31649312.mp3");
 }

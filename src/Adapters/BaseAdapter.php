@@ -13,6 +13,7 @@ abstract class BaseAdapter implements AdapterInterface
     use TimerTrait, DatabaseTrait;
 
     public array $配置信息;
+    public array $超级管理员 = [];
     public array $当前账号 = [];
     public string $来源ID = '';
     public string $信息ID = '';
@@ -21,11 +22,20 @@ abstract class BaseAdapter implements AdapterInterface
     public string $事件类型 = '';
     protected Logger $logger;
 
-    public function __construct(array $配置信息)
+    public function __construct(array $配置信息, array $超级管理员 = [])
     {
         $this->配置信息 = $配置信息;
+        $this->超级管理员 = $超级管理员;
         $this->数据库路径 = __DIR__ . '/../../数据/数据库';
         $this->logger = new Logger();
+    }
+
+    /**
+     * 判断当前用户是否是超级管理员
+     */
+    public function 是管理员(): bool
+    {
+        return in_array($this->用户ID, $this->超级管理员);
     }
 
     protected function 异步处理(array $解析, callable $处理器): void

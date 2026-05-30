@@ -40,8 +40,15 @@ if ($this->用户信息 == "当前账号") {
     $this->发送('文本', "当前appid: " . $this->当前账号["appid"]);
 }
 
+if ($this->用户信息 == "ID") {
+    $this->发送('文本', $this->用户ID);
+}
+
 if ($this->用户信息 == "原生") {
     $附加2 = [
+        "style" => [
+            "font_size" => "small"
+        ],
         "rows" => [
             [
                 "buttons" => [
@@ -90,12 +97,7 @@ if ($this->用户信息 == "原生") {
 $\textcolor{#4ECDC4}{薄荷绿}$
 $\textcolor{#45B7D1}{天蓝色}$
 $\textcolor{#F9CA24}{柠檬黄}$' . "\n" . 
-    '![图片 scheme="https://qq.com" #1920px #862px](https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhSsLjUzF4rxQHy8CTYDBj-ZDr93shjB1wkg_wooiZWi3JLUlAMyBHByb2RQgL2jAVoQs0893f7fKSCQxuLGN1X1mXoCHVyCAQJneg&spec=0&rkey=CAISMGjRK20_AfMLC8wadYOocoFH5yLl2rrSxbN4WPkBgWbm8yxoLbQ87QvpIpI5gcQguQ)' . "\n***\n" . '# 📢 公告
-$\textcolor{red}{● 重要提醒：}$
-1. 机器人维护时间：$\textcolor{blue}{每晚 23:00-01:00}$
-2. 遇到问题请戳下面按钮反馈
-
-$\textcolor{gray}{— 机器人管理组}$', 
+    '![图片 scheme="http://tucdn.wpon.cn/api-girl/index.php?wpon=302" #1920px #862px](https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhSsLjUzF4rxQHy8CTYDBj-ZDr93shjB1wkg_wooiZWi3JLUlAMyBHByb2RQgL2jAVoQs0893f7fKSCQxuLGN1X1mXoCHVyCAQJneg&spec=0&rkey=CAISMGjRK20_AfMLC8wadYOocoFH5yLl2rrSxbN4WPkBgWbm8yxoLbQ87QvpIpI5gcQguQ)' . "\n***\n" . '点击上方图片看视频', 
 $附加2);
 
 }
@@ -106,4 +108,9 @@ if ($this->按钮数据 == "点击测试" && $this->按钮ID == "btn_fd4flyc") {
 
 if ($this->按钮数据 == "点击失败测试" && $this->按钮ID == "btn_fd4flyy") {
     $this->发送("文本", "都说了别点！");
+}
+
+
+if ($this->用户信息 == "事件") {
+    $this->发送('文本', "当前事件类型: " . $this->事件类型);
 }

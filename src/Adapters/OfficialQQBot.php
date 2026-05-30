@@ -17,7 +17,7 @@ class OfficialQQBot extends BaseAdapter
     public array $公共访问头 = [];
     public mixed $响应 = null;
     public mixed $预返回信息 = null;
-    private ?string $上次发送ID = null;
+    private array $发送记录 = []; // 按用户ID记录最后发送的消息ID
     private static array $tokenCache = [];
 
     public function 获取API地址(): string
@@ -97,7 +97,7 @@ class OfficialQQBot extends BaseAdapter
                         $this->信息ID   = $解析["d"]["id"];
                         $this->事件ID   = $解析["id"];
                         $this->用户ID   = $解析["d"]["author"]["id"];
-                        $this->用户信息 = ltrim($解析["d"]["content"], '/');
+                        $this->用户信息 = ltrim(trim($解析["d"]["content"]), '/');
                         $this->logger->info("[单聊信息]{$this->用户ID}: {$this->用户信息}");
                         break;
 
@@ -277,7 +277,7 @@ class OfficialQQBot extends BaseAdapter
         }
     }
 
-    public function 发送(string $类型, mixed $主内容 = null, mixed $附加1 = null, mixed $附加2 = null): void
+    public function 发送(string $类型, mixed $主内容 = null, mixed $附加1 = null, mixed $附加2 = null): ?string
     {
         $API地址 = $this->获取API地址();
         $content = null;
@@ -343,7 +343,7 @@ class OfficialQQBot extends BaseAdapter
                     ];
                 } else {
                     $this->发送失败通知("{$类型}上传失败，资源可能无法访问");
-                    return;
+                    return null;
                 }
                 break;
             case "直发":
@@ -354,7 +354,7 @@ class OfficialQQBot extends BaseAdapter
                 ];
                 break;
             default:
-                return;
+                return null;
         }
 
         switch ($this->事件类型) {
@@ -410,36 +410,38 @@ class OfficialQQBot extends BaseAdapter
             default => null
         };
 
-        if ($url === null) return;
+        if ($url === null) return null;
 
-        \Swoole\Coroutine\go(function () use ($url, $data) {
-            try {
-                $响应 = $this->httpPost($url, json_encode($data, JSON_UNESCAPED_UNICODE), $this->公共访问头);
-                $发送请求 = $响应->getBody();
-                $this->预返回信息 = $发送请求;
+        $用户ID = $this->用户ID;
+        try {
+            $响应 = $this->httpPost($url, json_encode($data, JSON_UNESCAPED_UNICODE), $this->公共访问头);
+            $发送请求 = $响应->getBody();
+            $this->预返回信息 = $发送请求;
 
-                $结果 = json_decode($发送请求, true);
+            $结果 = json_decode($发送请求, true);
 
-                if (!empty($结果['code'])) {
-                    $this->logger->error("[发送失败] code={$结果['code']} msg={$结果['message']}");
-                    $this->发送失败通知($结果['message'] ?? '未知错误');
-                    return;
-                }
-
-                if (!empty($结果['id'])) {
-                    $this->上次发送ID = $结果['id'];
-                }
-
-                if ($this->事件类型 == "ShengBot_MSG") {
-                    $this->响应->header('Content-Type', 'application/json');
-                    $this->响应->status(200);
-                    $this->响应->end(json_encode(['msg' => $this->预返回信息], JSON_UNESCAPED_UNICODE));
-                }
-                $this->logger->info("[发送] " . $发送请求);
-            } catch (\Throwable $e) {
-                $this->logger->error("[发送失败] " . $e->getMessage());
+            if (!empty($结果['code'])) {
+                $this->logger->error("[发送失败] code={$结果['code']} msg={$结果['message']}");
+                $this->发送失败通知($结果['message'] ?? '未知错误');
+                return null;
             }
-        });
+
+            $消息ID = $结果['id'] ?? null;
+            if ($消息ID) {
+                $this->发送记录[$用户ID] = $消息ID;
+            }
+
+            if ($this->事件类型 == "ShengBot_MSG") {
+                $this->响应->header('Content-Type', 'application/json');
+                $this->响应->status(200);
+                $this->响应->end(json_encode(['msg' => $this->预返回信息], JSON_UNESCAPED_UNICODE));
+            }
+            $this->logger->info("[发送] " . $发送请求);
+            return $消息ID;
+        } catch (\Throwable $e) {
+            $this->logger->error("[发送失败] " . $e->getMessage());
+            return null;
+        }
     }
 
     private function 发送失败通知(string $原因): void
@@ -482,6 +484,106 @@ class OfficialQQBot extends BaseAdapter
             $cp = mb_ord($m[0], 'UTF-8');
             return sprintf('\u%04X', $cp);
         }, $str);
+    }
+
+    /**
+     * 撤回消息
+     * @param string $消息ID 要撤回的消息ID
+     * @return bool 是否撤回成功
+     */
+    public function 撤回(string $消息ID): bool
+    {
+        try {
+            $API地址 = $this->获取API地址();
+
+            $url = match($this->事件类型) {
+                "C2C_MESSAGE_CREATE", "FRIEND_ADD", "FRIEND_DEL"
+                    => "{$API地址}/v2/users/{$this->来源ID}/messages/{$消息ID}",
+                "GROUP_AT_MESSAGE_CREATE", "GROUP_ADD_ROBOT", "GROUP_DEL_ROBOT", "GROUP_MESSAGE_CREATE"
+                    => "{$API地址}/v2/groups/{$this->来源ID}/messages/{$消息ID}",
+                "INTERACTION_CREATE", "ShengBot_MSG"
+                    => ($this->按钮来源 === "c2c")
+                        ? "{$API地址}/v2/users/{$this->来源ID}/messages/{$消息ID}"
+                        : "{$API地址}/v2/groups/{$this->来源ID}/messages/{$消息ID}",
+                "DIRECT_MESSAGE_CREATE"
+                    => "{$API地址}/dms/{$this->来源ID}/messages/{$消息ID}",
+                "AT_MESSAGE_CREATE", "MESSAGE_CREATE"
+                    => "{$API地址}/channels/{$this->来源ID}/messages/{$消息ID}",
+                default => null
+            };
+
+            if ($url === null) {
+                $this->logger->warning("[撤回] 不支持的事件类型: {$this->事件类型}");
+                return false;
+            }
+
+            $响应 = HttpClientPool::delete($url, $this->公共访问头);
+            if ($响应 === null) {
+                $this->logger->error("[撤回] HTTP请求失败");
+                return false;
+            }
+
+            $this->logger->info("[撤回] 消息ID: {$消息ID} 状态码: {$响应['statusCode']}");
+            return $响应['statusCode'] === 200;
+        } catch (\Throwable $e) {
+            $this->logger->error("[撤回失败] " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 获取当前用户最后发送的消息ID
+     */
+    public function 获取上次发送ID(): ?string
+    {
+        return $this->发送记录[$this->用户ID] ?? null;
+    }
+
+    /**
+     * 发送互动召回消息（仅单聊）
+     * 当用户主动与机器人对话后，机器人可下发召回消息提醒用户
+     * 周期：当天、1-3天、3-7天、7-30天，每周期1条
+     * 
+     * @param string $内容 消息内容
+     * @return bool 是否发送成功
+     */
+    public function 发送召回(string $内容): bool
+    {
+        if ($this->事件类型 !== 'C2C_MESSAGE_CREATE') {
+            $this->logger->warning("[召回] 仅支持单聊场景");
+            return false;
+        }
+
+        try {
+            $API地址 = $this->获取API地址();
+            $url = "{$API地址}/v2/users/{$this->来源ID}/messages";
+
+            $data = [
+                "content" => $内容,
+                "msg_type" => 0,
+                "is_wakeup" => true
+            ];
+
+            $响应 = $this->httpPost($url, json_encode($data, JSON_UNESCAPED_UNICODE), $this->公共访问头);
+            if ($响应 === null) {
+                $this->logger->error("[召回] HTTP请求失败");
+                return false;
+            }
+
+            $body = $响应->getBody();
+            $结果 = json_decode($body, true);
+
+            if (!empty($结果['code'])) {
+                $this->logger->error("[召回失败] code={$结果['code']} msg={$结果['message']}");
+                return false;
+            }
+
+            $this->logger->info("[召回] 发送成功: {$body}");
+            return true;
+        } catch (\Throwable $e) {
+            $this->logger->error("[召回失败] " . $e->getMessage());
+            return false;
+        }
     }
 
     public function 流式(int $状态, string $内容, ?string $流ID = null, int $序号 = 0, bool $重置 = false): ?string
